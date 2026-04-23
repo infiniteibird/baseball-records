@@ -422,10 +422,19 @@ function buildPayloadFromDb(
   };
 }
 
-function sanitizeUploadedPlayers(players: unknown) {
+function sanitizeUploadedPlayers(players: unknown): UpsertPlayerRow[] {
   if (!Array.isArray(players)) {
     return [];
   }
+
+  type UploadedPlayerDraft = {
+    id: string;
+    name: string;
+    school: string;
+    teamId: string;
+    teamName: string;
+    source: "upload";
+  };
 
   const ids = new Set<string>();
 
@@ -465,18 +474,18 @@ function sanitizeUploadedPlayers(players: unknown) {
         source: "upload",
       };
     })
-    .filter((player): player is UpsertPlayerRow => player !== null)
-    .map((player) => ({
-      id: player.id,
-      team_id: player.teamId,
-      player_name: player.name,
-      school: player.school,
-      source: player.source,
-      stat_type: "roster",
-      raw:
-        playerRaw(player.name, player.school, player.teamName) as Record<
-          string,
-          string
+      .filter((player): player is UploadedPlayerDraft => player !== null)
+      .map((player) => ({
+        id: player.id,
+        team_id: player.teamId,
+        player_name: player.name,
+        school: player.school,
+        source: player.source,
+        stat_type: "roster" as const,
+        raw:
+          playerRaw(player.name, player.school, player.teamName) as Record<
+            string,
+            string
         >,
     }));
 }
@@ -513,6 +522,23 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
 
   const teamIds = new Set<string>();
   const gameIds = new Set<string>();
+
+  type NormalizedGame = {
+    id: string;
+    date: string;
+    time: string;
+    stadium: string;
+    status: "예정" | "종료" | "진행중";
+    away_team_id: string;
+    home_team_id: string;
+    away_score: number | null;
+    home_score: number | null;
+    source: "admin" | "mock";
+    detail_available: boolean;
+    note: string;
+    record: SavedGameRecord | null;
+    season: number;
+  };
 
   const teams = rawTeams
     .map((item) => {
@@ -609,9 +635,25 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
             ? (candidateGame.record as SavedGameRecord)
             : null,
         season: getSeasonFromDate(date),
-      };
+      } satisfies NormalizedGame;
     })
-    .filter((game): game is UpsertGameRow => game !== null);
+    .filter((game): game is NormalizedGame => game !== null)
+    .map((game) => ({
+      id: game.id,
+      date: game.date,
+      time: game.time,
+      stadium: game.stadium,
+      status: game.status,
+      away_team_id: game.away_team_id,
+      home_team_id: game.home_team_id,
+      away_score: game.away_score,
+      home_score: game.home_score,
+      source: game.source,
+      detail_available: game.detail_available,
+      note: game.note,
+      record: game.record,
+      season: game.season,
+    }));
 
   const uploadedPlayers = sanitizeUploadedPlayers(rawPlayers);
 
@@ -719,6 +761,10 @@ function summarizePostResult(runtimeEnv: RuntimeEnvironment) {
 }
 
 function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPayload>) {
+  if (!normalized) {
+    throw new Error("normalized payload가 유효하지 않습니다.");
+  }
+
   const games = normalized.games.map((game) => ({
     id: game.id,
     date: game.date,

@@ -20,7 +20,16 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-soft: var(--soft);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-system);
+}
+
+:root {
+  --font-system:
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 }
 
 * {
@@ -33,7 +42,7 @@ html {
 
 body {
   color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+  font-family: var(--font-system);
   background:
     radial-gradient(circle at top, rgba(19, 60, 115, 0.1), transparent 28%),
     linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);

@@ -1,6 +1,7 @@
 import { gameListItems } from "@/data/mock-games";
 import { mockTeams } from "@/data/mock-teams";
 import type { BaseballPersistPayload } from "@/types/baseball-persistence";
+import type { StoredGame } from "@/data/types";
 
 function extractTeamIdByName(teamName: string) {
   const team = mockTeams.find((current) => current.name === teamName);
@@ -13,7 +14,7 @@ export function buildSeedPayload(): BaseballPersistPayload {
     players: [...team.players],
   }));
 
-  const games = gameListItems.map((game) => ({
+  const games: StoredGame[] = gameListItems.map((game) => ({
     id: game.id,
     date: game.date,
     time: game.time,
@@ -24,7 +25,7 @@ export function buildSeedPayload(): BaseballPersistPayload {
     awayScore: game.awayScore,
     homeScore: game.homeScore,
     note: game.note,
-    source: "mock",
+    source: "mock" as const,
     detailAvailable: true,
     createdAt: `${game.date.replaceAll(".", "-")}T${game.time}`,
   }));
@@ -37,4 +38,3 @@ export function buildSeedPayload(): BaseballPersistPayload {
     source: "mock",
   };
 }
-

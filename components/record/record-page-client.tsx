@@ -154,6 +154,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
       return;
     }
 
+    setActiveCell(null);
     updateDraft((current) => ({
       ...current,
       [team]: {
@@ -632,8 +633,8 @@ function BattingRecordTable({
   onRemoveBatter: (rowId: string) => void;
   onUpdateRow: (
     rowId: string,
-    field: "battingOrder" | "playerName" | "position",
-    value: string | number,
+    field: "battingOrder" | "playerName" | "position" | "manualRuns" | "manualRbi",
+    value: string | number | undefined,
   ) => void;
 }>) {
   return (
@@ -654,7 +655,7 @@ function BattingRecordTable({
 
       <div className="overflow-x-auto rounded-2xl border border-line">
           <div className="min-w-[1040px]">
-          <div className="grid grid-cols-[36px_108px_92px_repeat(9,42px)_44px_44px_44px_44px_58px_44px] items-center bg-[#e4ebf5] px-2 py-2 text-[10px] font-semibold text-muted">
+          <div className="grid grid-cols-[36px_108px_92px_repeat(9,42px)_44px_44px_60px_60px_58px_44px] items-center bg-[#e4ebf5] px-2 py-2 text-[10px] font-semibold text-muted">
             <span>타순</span>
             <span>야수명</span>
             <span>포지션</span>
@@ -741,14 +742,7 @@ function BattingRecordTable({
                         activeCell.inningIndex === inningIndex
                       }
                       onAssign={() =>
-                        isPitcherAssignmentActive
-                          ? onAssignCell(teamKey, row.id, inningIndex)
-                          : onOpenCell({
-                              team: teamKey,
-                              rowId: row.id,
-                              inningIndex,
-                              mode: "replace",
-                            })
+                        onAssignCell(teamKey, row.id, inningIndex)
                       }
                       onOpen={(mode) =>
                         onOpenCell({
@@ -767,9 +761,45 @@ function BattingRecordTable({
 
                   <span className="flex items-center justify-end">{computed?.ab ?? 0}</span>
                   <span className="flex items-center justify-end">{computed?.hits ?? 0}</span>
-                  <span className="flex items-center justify-end">{computed?.runs ?? 0}</span>
-                  <span className="flex items-center justify-end">{computed?.rbi ?? 0}</span>
-                  <span className="flex items-center justify-end font-semibold text-primary">
+                  <span className="flex items-center justify-end">
+                    <input
+                      type="number"
+                      min="0"
+                      value={Number.isFinite(row.manualRuns ?? null) ? (row.manualRuns ?? 0) : ""}
+                      placeholder={String(computed?.runs ?? 0)}
+                      onChange={(event) =>
+                        onUpdateRow(
+                          row.id,
+                          "manualRuns",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
+                        )
+                      }
+                      className="h-8 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[12px] leading-none"
+                    />
+                    <span className="sr-only">{computed?.runs ?? 0}</span>
+                  </span>
+                  <span className="flex items-center justify-end">
+                    <input
+                      type="number"
+                      min="0"
+                      value={Number.isFinite(row.manualRbi ?? null) ? (row.manualRbi ?? 0) : ""}
+                      placeholder={String(computed?.rbi ?? 0)}
+                      onChange={(event) =>
+                        onUpdateRow(
+                          row.id,
+                          "manualRbi",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
+                        )
+                      }
+                      className="h-8 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[12px] leading-none"
+                    />
+                    <span className="sr-only">{computed?.rbi ?? 0}</span>
+                  </span>
+                  <span className="flex items-center justify-end pr-1 font-semibold text-primary">
                     {computed?.avg ?? ".000"}
                   </span>
                   <div className="flex items-center justify-end">
@@ -814,6 +844,9 @@ function PitchingRecordTable({
     runs: number;
     earnedRuns: number;
     walks: number;
+    hitByPitch?: number;
+    atBats?: number;
+    batters?: number;
     strikeouts: number;
     pitches: number;
   }>;
@@ -824,8 +857,8 @@ function PitchingRecordTable({
   onRemovePitcher: (rowId: string) => void;
   onUpdatePitcher: (
     rowId: string,
-    field: "name" | "role",
-    value: string,
+    field: "name" | "role" | "manualRuns" | "manualEarnedRuns" | "manualPitches",
+    value: string | number | undefined,
   ) => void;
 }>) {
   return (
@@ -846,7 +879,7 @@ function PitchingRecordTable({
 
       <div className="overflow-x-auto rounded-2xl border border-line">
           <div className="min-w-[860px]">
-          <div className="grid grid-cols-[34px_106px_74px_56px_52px_52px_52px_52px_52px_66px_48px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
+          <div className="grid grid-cols-[34px_94px_70px_50px_48px_62px_62px_42px_42px_42px_42px_42px_60px_52px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
             <span>순번</span>
             <span>투수명</span>
             <span>역할</span>
@@ -855,6 +888,9 @@ function PitchingRecordTable({
             <span className="text-right">실점</span>
             <span className="text-right">자책</span>
             <span className="text-right">볼넷</span>
+            <span className="text-right">사구</span>
+            <span className="text-right">타수</span>
+            <span className="text-right">타자</span>
             <span className="text-right">삼진</span>
             <span className="text-right">투구수</span>
             <span className="text-right">삭제</span>
@@ -867,7 +903,7 @@ function PitchingRecordTable({
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[34px_106px_74px_56px_52px_52px_52px_52px_52px_66px_48px] items-center px-2 py-1.5 text-[11px]"
+                  className="grid grid-cols-[34px_94px_70px_50px_48px_62px_62px_42px_42px_42px_42px_42px_60px_52px] items-center px-2 py-1.5 text-[11px]"
                 >
                   <div className="flex justify-center">
                     <button
@@ -911,11 +947,61 @@ function PitchingRecordTable({
                   />
                   <span className="text-right font-semibold text-primary">{computed?.ip ?? "0.0"}</span>
                   <span className="text-right">{computed?.hitsAllowed ?? 0}</span>
-                  <span className="text-right">{computed?.runs ?? 0}</span>
-                  <span className="text-right">{computed?.earnedRuns ?? 0}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={Number.isFinite(row.manualRuns ?? null) ? (row.manualRuns ?? 0) : ""}
+                    placeholder={String(computed?.runs ?? 0)}
+                    onChange={(event) =>
+                      onUpdatePitcher(
+                        row.id,
+                        "manualRuns",
+                        event.target.value === ""
+                          ? undefined
+                          : Number(event.target.value),
+                      )
+                    }
+                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={Number.isFinite(row.manualEarnedRuns ?? null) ? (row.manualEarnedRuns ?? 0) : ""}
+                    placeholder={String(computed?.earnedRuns ?? 0)}
+                    onChange={(event) =>
+                      onUpdatePitcher(
+                        row.id,
+                        "manualEarnedRuns",
+                        event.target.value === ""
+                          ? undefined
+                          : Number(event.target.value),
+                      )
+                    }
+                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                  />
                   <span className="text-right">{computed?.walks ?? 0}</span>
+                  <span className="text-right">{computed?.hitByPitch ?? 0}</span>
+                  <span className="text-right">{computed?.atBats ?? 0}</span>
+                  <span className="text-right">{computed?.batters ?? 0}</span>
                   <span className="text-right">{computed?.strikeouts ?? 0}</span>
-                  <span className="text-right">{computed?.pitches ?? 0}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={
+                      Number.isFinite(row.manualPitches ?? null) ? (row.manualPitches ?? 0) : ""
+                    }
+                    placeholder={String(computed?.pitches ?? 0)}
+                    onChange={(event) =>
+                      onUpdatePitcher(
+                        row.id,
+                        "manualPitches",
+                        event.target.value === ""
+                          ? undefined
+                          : Number(event.target.value),
+                      )
+                    }
+                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                  />
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
@@ -967,7 +1053,7 @@ function RecordCell({
     <div className="group relative flex min-h-0 items-center justify-center border-l border-line first:border-l-0">
       <button
         type="button"
-        onClick={() => onOpen("replace")}
+        onClick={() => (allowAssignment ? onAssign() : onOpen("replace"))}
         className="flex h-8 w-full min-w-0 items-center justify-center bg-white px-1 text-center text-[10px] leading-tight text-foreground hover:bg-[#f4f7fb]"
       >
         <span className="line-clamp-2">
@@ -978,11 +1064,7 @@ function RecordCell({
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          if (allowAssignment) {
-            onAssign();
-          } else {
-            onOpen("append");
-          }
+          onOpen("append");
         }}
         className="absolute right-1 top-1 rounded-full bg-primary/10 px-1 py-0.5 text-[9px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100"
       >

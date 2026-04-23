@@ -21,6 +21,9 @@ export function AdminGameForm() {
   );
   const [teamDrafts, setTeamDrafts] = useState<TeamConfig[] | null>(null);
   const [gameDrafts, setGameDrafts] = useState<StoredGame[] | null>(null);
+  const [gameStatusFilter, setGameStatusFilter] = useState<
+    "전체" | "예정" | "종료" | "진행중"
+  >("전체");
   const [newPlayerName, setNewPlayerName] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -43,8 +46,17 @@ export function AdminGameForm() {
   const hasTeamDraftChanges = teamDrafts !== null;
   const hasGameDraftChanges = gameDrafts !== null;
 
-  const selectedGame =
-    editableGames.find((game) => game.id === selectedGameId) ?? editableGames[0];
+  const filteredGames = useMemo(() => {
+    if (gameStatusFilter === "전체") {
+      return editableGames;
+    }
+
+    return editableGames.filter((game) => game.status === gameStatusFilter);
+  }, [editableGames, gameStatusFilter]);
+
+  const selectedGame = filteredGames.find((game) => game.id === selectedGameId) ??
+    filteredGames[0];
+  const selectedGameIdForDisplay = selectedGame?.id ?? selectedGameId;
   const selectedTeam =
     editableTeams.find((team) => team.id === selectedTeamId) ?? editableTeams[0];
 
@@ -129,6 +141,12 @@ export function AdminGameForm() {
       type: "success",
       text: "경기 변경사항을 저장하고 사이트 전체에 반영했습니다.",
     });
+  }
+
+  function getStatusFilterButtonClass(status: "전체" | "예정" | "종료" | "진행중") {
+    return gameStatusFilter === status
+      ? "rounded-2xl bg-primary text-white px-3 py-2 text-xs font-semibold"
+      : "rounded-2xl bg-card text-primary px-3 py-2 text-xs font-semibold";
   }
 
   function handleAddPlayer() {
@@ -262,7 +280,37 @@ export function AdminGameForm() {
             <div className="rounded-3xl bg-soft p-3">
               <div className="mb-3 flex items-center justify-between gap-3 px-2">
                 <p className="text-xs font-semibold text-muted">전체 경기 목록</p>
-                <span className="text-xs text-muted">{editableGames.length}경기</span>
+                <span className="text-xs text-muted">{filteredGames.length}경기</span>
+              </div>
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGameStatusFilter("전체")}
+                  className={getStatusFilterButtonClass("전체")}
+                >
+                  전체
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGameStatusFilter("예정")}
+                  className={getStatusFilterButtonClass("예정")}
+                >
+                  예정 경기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGameStatusFilter("종료")}
+                  className={getStatusFilterButtonClass("종료")}
+                >
+                  종료 경기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGameStatusFilter("진행중")}
+                  className={getStatusFilterButtonClass("진행중")}
+                >
+                  진행중 경기
+                </button>
               </div>
               <div className="mb-3 grid grid-cols-2 gap-2">
                 <button
@@ -282,8 +330,8 @@ export function AdminGameForm() {
               </div>
 
               <div className="space-y-2">
-                {editableGames.map((game) => {
-                  const isActive = selectedGame?.id === game.id;
+                {filteredGames.map((game) => {
+                  const isActive = selectedGameIdForDisplay === game.id;
 
                   return (
                     <article

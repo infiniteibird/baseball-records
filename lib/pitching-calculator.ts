@@ -253,6 +253,7 @@ export function buildPitchingRowsFromAssignments(
   pitchers: PitcherRecordRow[],
   assignments?: TeamPitcherAssignment,
 ): PitchingStatRow[] {
+  const pitcherLookup = new Map(pitchers.map((pitcher) => [pitcher.id, pitcher]));
   const fallbackPitchers: PitcherRecordRow[] = pitchers.length
     ? pitchers
     : [{ id: EMPTY_PITCHER_ID, name: "투수", role: "선발" }];
@@ -261,6 +262,7 @@ export function buildPitchingRowsFromAssignments(
   const pitcherIntervals = resolvePitcherIntervals(fallbackPitchers, sequence.length, assignments);
 
   return fallbackPitchers.map((pitcher, pitcherIndex) => {
+    const manual = pitcherLookup.get(pitcher.id);
     const interval = pitcherIntervals[pitcherIndex] ?? null;
 
     const totals = interval
@@ -294,23 +296,29 @@ export function buildPitchingRowsFromAssignments(
           outs: 0,
         };
 
-    return {
-      team,
-      name: pitcher.name,
-      ip: formatInningsFromOuts(totals.outs),
-      hitsAllowed: totals.hitsAllowed,
-      runs: totals.runs,
-      earnedRuns: totals.earnedRuns,
-      walks: totals.walks + totals.hitByPitch,
-      strikeouts: totals.strikeouts,
-      homeRunsAllowed: totals.homeRunsAllowed,
-      batters: totals.batters,
-      atBats: totals.atBats,
-      pitches: estimatePitchCount(totals.outs, totals.hitsAllowed, totals.strikeouts, totals.walks + totals.hitByPitch),
-      gameType: pitcher.role,
-      win: "",
-      loss: "",
-      save: "",
-    } satisfies PitchingStatRow;
+  return {
+    team,
+    name: pitcher.name,
+    ip: formatInningsFromOuts(totals.outs),
+    hitsAllowed: totals.hitsAllowed,
+    runs: manual?.manualRuns ?? totals.runs,
+    earnedRuns: manual?.manualEarnedRuns ?? totals.earnedRuns,
+    walks: totals.walks,
+    hitByPitch: totals.hitByPitch,
+    strikeouts: totals.strikeouts,
+    homeRunsAllowed: totals.homeRunsAllowed,
+    batters: totals.batters,
+    atBats: totals.atBats,
+    pitches: manual?.manualPitches ?? estimatePitchCount(
+      totals.outs,
+      totals.hitsAllowed,
+      totals.strikeouts,
+      totals.walks + totals.hitByPitch,
+    ),
+    gameType: pitcher.role,
+    win: "",
+    loss: "",
+    save: "",
+  } satisfies PitchingStatRow;
   });
 }

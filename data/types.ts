@@ -122,6 +122,7 @@ export type PitchingStatRow = {
   runs: number;
   earnedRuns: number;
   walks: number;
+  hitByPitch?: number;
   strikeouts: number;
   homeRunsAllowed: number;
   batters: number;

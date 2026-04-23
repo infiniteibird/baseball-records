@@ -11,12 +11,17 @@ export type BatterRecordRow = {
   playerName: string;
   position: string;
   inningResults: RecordCellEntry[][];
+  manualRuns?: number;
+  manualRbi?: number;
 };
 
 export type PitcherRecordRow = {
   id: string;
   name: string;
   role: string;
+  manualRuns?: number;
+  manualEarnedRuns?: number;
+  manualPitches?: number;
 };
 
 export type TeamRecordDraft = {

@@ -262,14 +262,16 @@ function summarizeTeamRecord(
   const inningRuns = Array.from({ length: 9 }, () => 0);
   const battingRows = batters.map((row) => {
     const totals = summarizeBatterRow(row, inningRuns);
+    const runs = row.manualRuns ?? totals.runs;
+    const rbi = row.manualRbi ?? totals.rbi;
 
     return {
       team,
       name: row.playerName,
       ab: totals.ab,
-      runs: totals.runs,
+      runs,
       hits: totals.hits,
-      rbi: totals.rbi,
+      rbi,
       hr: totals.hr,
       bb: totals.bb,
       so: totals.so,
@@ -289,6 +291,7 @@ function summarizeTeamRecord(
       accumulator.strikeouts += row.so;
       accumulator.walks += row.bb;
       accumulator.reachBase += row.hits + row.bb;
+      accumulator.runs += row.runs;
       return accumulator;
     },
     {
@@ -298,6 +301,7 @@ function summarizeTeamRecord(
       strikeouts: 0,
       walks: 0,
       reachBase: 0,
+      runs: 0,
     },
   );
 
@@ -313,7 +317,7 @@ function summarizeTeamRecord(
     pitchingRows: pitcherSummaries,
     lineRuns: inningRuns.map((value) => String(value)),
     totals: {
-      R: String(inningRuns.reduce((sum, value) => sum + value, 0)),
+      R: String(teamTotals.runs),
       H: String(teamTotals.hits),
       E: "0",
       B: String(teamTotals.reachBase),
@@ -327,7 +331,7 @@ function summarizeTeamRecord(
       errorsCommittedByOpponent: defensiveErrors,
     },
     summaryLists: lists,
-    runs: inningRuns.reduce((sum, value) => sum + value, 0),
+    runs: teamTotals.runs,
   };
 }
 

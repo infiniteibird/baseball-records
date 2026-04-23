@@ -778,7 +778,10 @@ function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPaylo
     source: game.source,
     detail_available: game.detail_available,
     note: game.note,
-    record: game.record,
+    record:
+      normalized.records[game.id] ??
+      game.record ??
+      null,
     season: game.season,
   }));
 

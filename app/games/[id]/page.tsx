@@ -3,6 +3,7 @@
 import { use } from "react";
 import { notFound } from "next/navigation";
 import { SectionCard } from "@/components/section-card";
+import type { DisplayGame } from "@/data/types";
 import { getGameDetailById } from "@/data/mock-games";
 import { useBaseballData } from "@/store/baseball-context";
 
@@ -11,9 +12,15 @@ export default function GameDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { getRecordDetailByGameId, isHydrated } = useBaseballData();
+  const { getRecordDetailByGameId, isHydrated, recentGames, upcomingGames } =
+    useBaseballData();
   const { id } = use(params);
-  const game = getRecordDetailByGameId(id) ?? getGameDetailById(id);
+  const recordGame = getRecordDetailByGameId(id);
+  const fallbackGame = findGameFromLists(id, [...recentGames, ...upcomingGames]);
+  const game =
+    recordGame ??
+    getGameDetailById(id) ??
+    (fallbackGame ? createEmptyDetailFromDisplayGame(fallbackGame) : null);
 
   if (!isHydrated && !game) {
     return (
@@ -183,6 +190,68 @@ export default function GameDetailPage({
       </SectionCard>
     </main>
   );
+}
+
+function findGameFromLists(id: string, games: DisplayGame[]): DisplayGame | null {
+  return games.find((item) => item.id === id) ?? null;
+}
+
+function createEmptyDetailFromDisplayGame(game: DisplayGame) {
+  const innings = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+  return {
+    id: game.id,
+    date: game.date,
+    time: game.time,
+    stadium: game.stadium,
+    status: game.status,
+    awayTeam: game.awayTeam,
+    homeTeam: game.homeTeam,
+    awayScore: game.awayScore,
+    homeScore: game.homeScore,
+    note:
+      game.detailAvailable
+        ? "상세 기록이 아직 비어 있습니다. 기록 입력 페이지에서 상세를 입력해 주세요."
+        : "아직 상세 기록이 입력되지 않은 예정 경기입니다.",
+    lineScore: {
+      innings,
+      awayRuns: Array(9).fill(""),
+      homeRuns: Array(9).fill(""),
+      awayTotals: {
+        R: game.awayScore === null ? "0" : String(game.awayScore),
+        H: "0",
+        E: "0",
+        B: "0",
+      },
+      homeTotals: {
+        R: game.homeScore === null ? "0" : String(game.homeScore),
+        H: "0",
+        E: "0",
+        B: "0",
+      },
+    },
+    teamStatsComparison: [
+      { label: "안타", away: 0, home: 0 },
+      { label: "홈런", away: 0, home: 0 },
+      { label: "도루", away: 0, home: 0 },
+      { label: "삼진", away: 0, home: 0 },
+      { label: "병살", away: 0, home: 0 },
+      { label: "실책", away: 0, home: 0 },
+    ],
+    summary: {
+      decisiveHit: "상세 기록 입력 대기",
+      homeRuns: "상세 기록 입력 대기",
+      doubles: "상세 기록 입력 대기",
+      steals: "상세 기록 입력 대기",
+      caughtStealing: "상세 기록 입력 대기",
+      baserunningOuts: "상세 기록 입력 대기",
+      pickoffs: "상세 기록 입력 대기",
+      passedBalls: "상세 기록 입력 대기",
+      umpires: "상세 기록 입력 대기",
+    },
+    battingStats: [],
+    pitchingStats: [],
+  };
 }
 
 function TeamScoreBlock({

@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useCallback,
   useState,
 } from "react";
 import {
@@ -16,13 +17,16 @@ import {
   buildRecordedPlayerHittingStats,
   buildRecordedPlayerPitchingStats,
 } from "@/lib/record-player-stats";
+import {
+  loadBaseballPersistedPayload,
+  saveBaseballPersistedPayload,
+} from "@/lib/baseball-persistence";
+import { buildSeedPayload } from "@/lib/baseball-seed";
 import { recordCodeMap } from "@/lib/record-codes";
 import {
   mockHitterLeaders,
   mockPitcherLeaders,
 } from "@/data/mock-players";
-import { gameListItems } from "@/data/mock-games";
-import { mockTeams } from "@/data/mock-teams";
 import type {
   BaseballState,
   DisplayGame,
@@ -35,6 +39,7 @@ import type {
   TodayGameCard,
   UploadedPlayer,
 } from "@/data/types";
+import type { BaseballPersistPayload } from "@/types/baseball-persistence";
 import type { SavedGameRecord } from "@/types/record";
 import type { BatterRecordRow, PitcherRecordRow } from "@/types/record";
 
@@ -101,7 +106,7 @@ type BaseballContextValue = {
   resetState: () => void;
 };
 
-const STORAGE_KEY = "baseball-records-store-v1";
+const STORAGE_KEY = "baseball-records-cache-v1";
 
 const BaseballContext = createContext<BaseballContextValue | null>(null);
 
@@ -117,21 +122,70 @@ export function BaseballProvider({
   );
   const [isHydrated, setIsHydrated] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = normalizePersistedState(JSON.parse(raw) as Partial<BaseballState>);
-        dispatch({
-          type: "hydrate",
-          payload: parsed,
-        });
-      }
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } finally {
-      setIsHydrated(true);
+  const persistStateToCache = useCallback((nextState: BaseballState) => {
+    if (typeof window === "undefined") {
+      return;
     }
+
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(toPersistPayload(nextState)),
+    );
+  }, []);
+
+  const persistSharedState = useCallback(async (nextState: BaseballState) => {
+    persistStateToCache(nextState);
+    try {
+      await saveBaseballPersistedPayload(toPersistPayload(nextState));
+    } catch {
+      // Keep browser cache updated; DB sync will be retried on later updates.
+    }
+  }, [persistStateToCache]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateFromSharedStore() {
+      try {
+        const payload = await loadBaseballPersistedPayload();
+        if (!cancelled) {
+          dispatch({
+            type: "hydrate",
+            payload: normalizePersistedPayload(payload),
+          });
+        }
+        return;
+      } catch {
+        // Fallback to browser cache or seed when API is not available.
+      }
+
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          return;
+        }
+
+        const parsed = normalizePersistedState(JSON.parse(raw) as Partial<BaseballPersistPayload>);
+        if (!cancelled) {
+          dispatch({
+            type: "hydrate",
+            payload: parsed,
+          });
+        }
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
+    void hydrateFromSharedStore().finally(() => {
+      if (!cancelled) {
+        setIsHydrated(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -139,8 +193,8 @@ export function BaseballProvider({
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [isHydrated, state]);
+    persistStateToCache(state);
+  }, [isHydrated, state, persistStateToCache]);
 
   const value = useMemo<BaseballContextValue>(() => {
     const teamNameMap = new Map(
@@ -237,10 +291,16 @@ export function BaseballProvider({
       hitterLeaders: displayHitterLeaders,
       pitcherLeaders: displayPitcherLeaders,
       saveGames(games) {
+        const nextState = {
+          ...state,
+          games: cloneGames(games),
+        };
+
         dispatch({
           type: "replace_games",
           payload: cloneGames(games),
         });
+        void persistSharedState(nextState);
       },
       saveGameRecord(gameId, record, saveStatus) {
         const matchedGame = state.games.find((game) => game.id === gameId);
@@ -254,17 +314,28 @@ export function BaseballProvider({
           updatedAt: new Date().toISOString(),
         } satisfies SavedGameRecord;
 
+        const nextGames = state.games.map((game) =>
+          game.id === gameId
+            ? applyRecordToGame(game, state.teams, nextRecord, saveStatus)
+            : game,
+        );
+        const nextRecords = {
+          ...cloneRecords(state.records),
+          [gameId]: nextRecord,
+        };
+
         dispatch({
           type: "replace_games",
-          payload: state.games.map((game) =>
-            game.id === gameId
-              ? applyRecordToGame(game, state.teams, nextRecord, saveStatus)
-              : game,
-          ),
+          payload: nextGames,
         });
         dispatch({
           type: "save_record",
           payload: nextRecord,
+        });
+        void persistSharedState({
+          ...state,
+          games: nextGames,
+          records: nextRecords,
         });
       },
       getRecordDetailByGameId(gameId) {
@@ -278,36 +349,80 @@ export function BaseballProvider({
         return buildGameDetailFromRecord(matchedGame, state.teams, matchedRecord);
       },
       saveTeams(teams) {
+        const nextState = {
+          ...state,
+          teams: cloneTeams(teams),
+        };
+
         dispatch({
           type: "replace_teams",
           payload: cloneTeams(teams),
         });
+        void persistSharedState(nextState);
       },
       importUploadedPlayers(players) {
+        const clonedPlayers = cloneUploadedPlayers(players);
+        const nextState = {
+          ...state,
+          teams: appendUploadedPlayersToTeams(state.teams, clonedPlayers),
+          uploadedPlayers: [
+            ...cloneUploadedPlayers(state.uploadedPlayers),
+            ...clonedPlayers,
+          ],
+        };
+
         dispatch({
           type: "append_uploaded_players",
-          payload: cloneUploadedPlayers(players),
+          payload: clonedPlayers,
         });
+        void persistSharedState(nextState);
       },
       removeUploadedPlayers(playerIds) {
+        const removeSet = new Set(playerIds);
+        const removedPlayers = state.uploadedPlayers.filter((player) =>
+          removeSet.has(player.id),
+        );
+        const nextState = {
+          ...state,
+          teams: removePlayersFromTeams(state.teams, removedPlayers),
+          uploadedPlayers: cloneUploadedPlayers(
+            state.uploadedPlayers.filter((player) => !removeSet.has(player.id)),
+          ),
+        };
+
         dispatch({
           type: "remove_uploaded_players",
           payload: [...playerIds],
         });
+        void persistSharedState(nextState);
       },
       removeRosterPlayers(players) {
+        const nextState = {
+          ...state,
+          teams: removePlayersFromTeams(state.teams, players),
+          uploadedPlayers: cloneUploadedPlayers(
+            state.uploadedPlayers.filter(
+              (player) => !players.some((target) => target.id === player.id),
+            ),
+          ),
+        };
+
         dispatch({
           type: "remove_roster_players",
           payload: cloneUploadedPlayers(players),
         });
+        void persistSharedState(nextState);
       },
       resetState() {
+        const nextState = createInitialState();
+
         dispatch({
           type: "reset",
         });
+        void persistSharedState(nextState);
       },
     };
-  }, [isHydrated, state]);
+  }, [isHydrated, persistSharedState, state]);
 
   return (
     <BaseballContext.Provider value={value}>{children}</BaseballContext.Provider>
@@ -325,30 +440,15 @@ export function useBaseballData() {
 }
 
 function createInitialState(): BaseballState {
-  const teams = cloneTeams(mockTeams);
-  const teamIdByName = new Map(teams.map((team) => [team.name, team.id] as const));
+  const seed = buildSeedPayload();
 
   return {
-    teams,
-    games: gameListItems.map((game) => ({
-      id: game.id,
-      date: game.date,
-      time: game.time,
-      stadium: game.stadium,
-      status: game.status,
-      awayTeamId: teamIdByName.get(game.awayTeam) ?? game.awayTeam,
-      homeTeamId: teamIdByName.get(game.homeTeam) ?? game.homeTeam,
-      awayScore: game.awayScore,
-      homeScore: game.homeScore,
-      note: game.note,
-      source: "mock",
-      detailAvailable: true,
-      createdAt: createComparableDate(game.date, game.time),
-    })),
+    teams: cloneTeams(seed.teams),
+    games: cloneGames(seed.games),
     hitters: [],
     pitchers: [],
     records: {},
-    uploadedPlayers: [],
+    uploadedPlayers: [...seed.uploadedPlayers],
   };
 }
 
@@ -366,6 +466,33 @@ function normalizePersistedState(
     uploadedPlayers: persistedState.uploadedPlayers
       ? cloneUploadedPlayers(persistedState.uploadedPlayers)
       : [],
+  };
+}
+
+function normalizePersistedPayload(payload: unknown): BaseballState {
+  if (!payload || typeof payload !== "object") {
+    return createInitialState();
+  }
+
+  const normalized = payload as Partial<BaseballPersistPayload>;
+
+  return normalizePersistedState({
+    teams: normalized.teams,
+    games: normalized.games,
+    hitters: [],
+    pitchers: [],
+    records: normalized.records,
+    uploadedPlayers: normalized.uploadedPlayers,
+  });
+}
+
+function toPersistPayload(state: BaseballState): BaseballPersistPayload {
+  return {
+    teams: cloneTeams(state.teams),
+    games: cloneGames(state.games),
+    uploadedPlayers: cloneUploadedPlayers(state.uploadedPlayers),
+    records: cloneRecords(state.records),
+    source: "db",
   };
 }
 

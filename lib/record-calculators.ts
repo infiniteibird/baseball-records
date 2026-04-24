@@ -11,6 +11,7 @@ import type {
 import { recordCodeMap } from "@/lib/record-codes";
 import type {
   BatterRecordRow,
+  ManualLineScore,
   PitcherRecordRow,
   RecordCellEntry,
   SavedGameRecord,
@@ -151,12 +152,19 @@ export function buildGameDetailFromRecord(
     "home",
     homePitchingRows,
   );
+  const lineScore = buildLineScore(
+    record.manualLineScore,
+    awaySummary.lineRuns,
+    homeSummary.lineRuns,
+  );
+  const awayScore = sumLineScoreRuns(lineScore.awayRuns);
+  const homeScore = sumLineScoreRuns(lineScore.homeRuns);
 
   const awayErrors = homeSummary.comparisons.errorsCommittedByOpponent;
   const homeErrors = awaySummary.comparisons.errorsCommittedByOpponent;
 
   const decisiveTeam =
-    awaySummary.runs > homeSummary.runs ? awaySummary : homeSummary.runs > awaySummary.runs ? homeSummary : null;
+    awayScore > homeScore ? awaySummary : homeScore > awayScore ? homeSummary : null;
   const decisiveHit = decisiveTeam?.summaryLists.homeRuns[0]
     ?? decisiveTeam?.summaryLists.doubles[0]
     ?? "기록 입력 중";
@@ -169,24 +177,24 @@ export function buildGameDetailFromRecord(
     status: game.status,
     awayTeam: awayTeamName,
     homeTeam: homeTeamName,
-    awayScore: awaySummary.runs,
-    homeScore: homeSummary.runs,
+    awayScore,
+    homeScore,
     note:
       record.saveStatus === "saved"
         ? "관리자 기록 입력이 저장된 경기입니다."
         : "관리자 기록 입력이 임시저장된 경기입니다.",
     lineScore: {
       innings: ["1", "2", "3", "4", "5", "6", "7", "8", "9"],
-      awayRuns: awaySummary.lineRuns,
-      homeRuns: homeSummary.lineRuns,
+      awayRuns: lineScore.awayRuns,
+      homeRuns: lineScore.homeRuns,
       awayTotals: {
-        R: String(awaySummary.runs),
+        R: String(awayScore),
         H: awaySummary.totals.H,
         E: String(awayErrors),
         B: awaySummary.totals.B,
       },
       homeTotals: {
-        R: String(homeSummary.runs),
+        R: String(homeScore),
         H: homeSummary.totals.H,
         E: String(homeErrors),
         B: homeSummary.totals.B,
@@ -389,6 +397,10 @@ function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
             accumulator.ab += 1;
             accumulator.outs += 1;
             break;
+          case "strikeout_reached":
+            accumulator.so += 1;
+            accumulator.ab += 1;
+            break;
           case "groundout":
           case "out":
             if (isMainResult) {
@@ -414,6 +426,11 @@ function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
             break;
           case "steal":
             accumulator.sb += 1;
+            break;
+          case "caught_stealing":
+          case "pickoff":
+          case "baserunning_out":
+            accumulator.outs += 1;
             break;
           case "run_scored":
             accumulator.runs += 1;
@@ -558,4 +575,39 @@ function getTeamPitcherAssignments(
   assignments: TeamPitcherAssignment | undefined,
 ): TeamPitcherAssignment {
   return assignments ?? {};
+}
+
+function buildLineScore(
+  manualLineScore: ManualLineScore | undefined,
+  awayRuns: string[],
+  homeRuns: string[],
+) {
+  return {
+    awayRuns: normalizeLineScoreArray(manualLineScore?.awayRuns, awayRuns),
+    homeRuns: normalizeLineScoreArray(manualLineScore?.homeRuns, homeRuns),
+  };
+}
+
+function normalizeLineScoreArray(
+  manualRuns: string[] | undefined,
+  fallbackRuns: string[],
+) {
+  return Array.from({ length: 9 }, (_, index) => {
+    const value = manualRuns?.[index];
+    return typeof value === "string" ? value : fallbackRuns[index] ?? "";
+  });
+}
+
+function sumLineScoreRuns(runs: string[]) {
+  return runs.reduce((total, value) => total + parseLineScoreValue(value), 0);
+}
+
+function parseLineScoreValue(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/record-calculators";
 import { POSITION_OPTIONS, toPositionCode } from "@/lib/position-options";
 import {
+  recordCodeDefinitionsSorted,
   recordCodeCategoryLabel,
   searchRecordCodes,
   type RecordCodeDefinition,
@@ -40,6 +41,44 @@ type PitcherAssignmentMode = {
 
 type PitcherAssignmentsTarget = "away" | "home" | null;
 
+const recordReferenceSections = [
+  {
+    title: "아웃 관련 기록",
+    description: "타자 아웃과 희생타/병살 계열 기록입니다.",
+    categories: ["strikeout", "out", "groundout", "double_play", "sac_bunt", "sac_fly"],
+    accentClass: "border-[#cbd8ee] bg-[#f4f7fc]",
+  },
+  {
+    title: "타격 / 출루 관련 기록",
+    description: "안타, 장타, 볼넷, 사구 등 출루 결과입니다.",
+    categories: ["single", "double", "triple", "home_run", "walk", "intentional_walk", "hit_by_pitch", "strikeout_reached"],
+    accentClass: "border-[#d7e8d6] bg-[#f5fbf4]",
+  },
+  {
+    title: "주루 관련 기록",
+    description: "도루, 견제사, 주루사, 야수선택 등 진루 흐름 기록입니다.",
+    categories: ["steal", "caught_stealing", "pickoff", "baserunning_out", "fielders_choice"],
+    accentClass: "border-[#f1e1bf] bg-[#fff9ef]",
+  },
+  {
+    title: "기타 특수 기록",
+    description: "실책, 폭투, 포일, 방해, 런다운 등 특수 상황 기록입니다.",
+    categories: ["error", "other_play"],
+    accentClass: "border-[#e5d5ec] bg-[#fbf7fd]",
+  },
+  {
+    title: "기본 집계 기록",
+    description: "득점과 타점처럼 합산에 직접 반영되는 기본 기록입니다.",
+    categories: ["run_scored", "rbi"],
+    accentClass: "border-[#d7dee8] bg-[#f6f8fb]",
+  },
+].map((section) => ({
+  ...section,
+  items: recordCodeDefinitionsSorted.filter((definition) =>
+    section.categories.includes(definition.category),
+  ),
+})).filter((section) => section.items.length > 0);
+
 export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
   const { state, isHydrated, saveGameRecord } = useBaseballData();
   const [draftRecord, setDraftRecord] = useState<SavedGameRecord | null>(null);
@@ -50,6 +89,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [isRecordReferenceOpen, setIsRecordReferenceOpen] = useState(false);
 
   const game = state.games.find((item) => item.id === gameId);
   const sourceRecord = useMemo(
@@ -129,6 +169,38 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
         ...current[team],
         pitcherAssignments: { ...(current[team].pitcherAssignments ?? {}) },
         pitchers: updater(current[team].pitchers),
+      },
+    }));
+  }
+
+  function updateManualLineScore(
+    team: "away" | "home",
+    inningIndex: number,
+    value: string,
+  ) {
+    const normalizedValue = normalizeLineScoreInput(value);
+    const awayRuns =
+      editableRecord.manualLineScore?.awayRuns ?? detailPreview.lineScore.awayRuns;
+    const homeRuns =
+      editableRecord.manualLineScore?.homeRuns ?? detailPreview.lineScore.homeRuns;
+
+    updateDraft((current) => ({
+      ...current,
+      manualLineScore: {
+        awayRuns: Array.from({ length: 9 }, (_, index) =>
+          team === "away"
+            ? index === inningIndex
+              ? normalizedValue
+              : awayRuns[index] ?? ""
+            : awayRuns[index] ?? "",
+        ),
+        homeRuns: Array.from({ length: 9 }, (_, index) =>
+          team === "home"
+            ? index === inningIndex
+              ? normalizedValue
+              : homeRuns[index] ?? ""
+            : homeRuns[index] ?? "",
+        ),
       },
     }));
   }
@@ -387,26 +459,102 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
           </div>
 
           <div className="rounded-3xl bg-soft p-4">
-            <p className="text-xs font-semibold text-muted">라인스코어 미리보기</p>
-            <div className="mt-3 grid grid-cols-[60px_repeat(9,28px)] gap-1 text-[11px]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-muted">라인스코어 입력</p>
+                <p className="mt-1 text-[11px] text-muted">
+                  이닝별 점수를 직접 입력하면 합계가 스코어보드와 상세 스코어에 반영됩니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRecordReferenceOpen((current) => !current)}
+                className="inline-flex shrink-0 rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-primary transition hover:border-primary"
+              >
+                {isRecordReferenceOpen ? "기록표 닫기" : "기록표"}
+              </button>
+            </div>
+
+            {isRecordReferenceOpen ? (
+              <div className="mt-4 rounded-3xl border border-line bg-white p-4">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-semibold text-foreground">유니크플레이 기록표</h3>
+                  <p className="text-xs leading-5 text-muted">
+                    현재 시스템이 지원하는 기록 코드 안내용 표입니다. 이 패널은 읽기 전용이며,
+                    클릭해도 실제 기록 입력값은 바뀌지 않습니다.
+                  </p>
+                </div>
+                <div className="mt-4 max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                  {recordReferenceSections.map((section) => (
+                    <section
+                      key={section.title}
+                      className={`rounded-3xl border p-4 ${section.accentClass}`}
+                    >
+                      <div className="mb-3">
+                        <p className="text-sm font-semibold text-foreground">{section.title}</p>
+                        <p className="mt-1 text-xs text-muted">{section.description}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {section.items.map((definition) => (
+                          <div
+                            key={`${section.title}-${definition.code}`}
+                            className="min-w-[86px] rounded-2xl border border-white/70 bg-white px-3 py-2"
+                          >
+                            <p className="text-sm font-semibold text-foreground">{definition.code}</p>
+                            <p className="mt-1 text-[11px] text-muted">
+                              {recordCodeCategoryLabel[definition.category]}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid grid-cols-[60px_repeat(9,28px)_36px] gap-1 text-[11px]">
               <span className="font-semibold text-muted">이닝</span>
               {detailPreview.lineScore.innings.map((inning) => (
                 <span key={inning} className="text-center font-semibold text-muted">
                   {inning}
                 </span>
               ))}
+              <span className="text-center font-semibold text-muted">합계</span>
               <span className="font-semibold text-foreground">원정</span>
               {detailPreview.lineScore.awayRuns.map((run, index) => (
-                <span key={`away-${index}`} className="rounded bg-white px-1 py-1 text-center">
-                  {run}
-                </span>
+                <input
+                  key={`away-${index}`}
+                  value={run}
+                  onChange={(event) =>
+                    updateManualLineScore("away", index, event.target.value)
+                  }
+                  inputMode="numeric"
+                  maxLength={2}
+                  className="rounded border border-line bg-white px-1 py-1 text-center text-[11px] text-foreground outline-none transition focus:border-primary"
+                  aria-label={`원정 ${index + 1}회 점수`}
+                />
               ))}
+              <span className="rounded bg-white px-1 py-1 text-center font-semibold text-primary">
+                {detailPreview.lineScore.awayTotals.R}
+              </span>
               <span className="font-semibold text-foreground">홈</span>
               {detailPreview.lineScore.homeRuns.map((run, index) => (
-                <span key={`home-${index}`} className="rounded bg-white px-1 py-1 text-center">
-                  {run}
-                </span>
+                <input
+                  key={`home-${index}`}
+                  value={run}
+                  onChange={(event) =>
+                    updateManualLineScore("home", index, event.target.value)
+                  }
+                  inputMode="numeric"
+                  maxLength={2}
+                  className="rounded border border-line bg-white px-1 py-1 text-center text-[11px] text-foreground outline-none transition focus:border-primary"
+                  aria-label={`홈 ${index + 1}회 점수`}
+                />
               ))}
+              <span className="rounded bg-white px-1 py-1 text-center font-semibold text-primary">
+                {detailPreview.lineScore.homeTotals.R}
+              </span>
             </div>
           </div>
         </div>
@@ -654,8 +802,8 @@ function BattingRecordTable({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-line">
-          <div className="min-w-[1040px]">
-          <div className="grid grid-cols-[36px_108px_92px_repeat(9,42px)_44px_44px_60px_60px_58px_44px] items-center bg-[#e4ebf5] px-2 py-2 text-[10px] font-semibold text-muted">
+        <div className="min-w-[1140px]">
+          <div className="grid grid-cols-[40px_120px_96px_repeat(9,50px)_48px_48px_64px_64px_60px_72px] items-center bg-[#e4ebf5] px-2 py-2 text-[10px] font-semibold text-muted">
             <span>타순</span>
             <span>야수명</span>
             <span>포지션</span>
@@ -680,7 +828,7 @@ function BattingRecordTable({
               return (
                 <div
                   key={row.id}
-                  className={`grid grid-cols-[36px_108px_92px_repeat(9,42px)_44px_44px_44px_44px_58px_44px] items-stretch px-2 py-0 text-[11px] ${
+                  className={`grid grid-cols-[40px_120px_96px_repeat(9,50px)_48px_48px_64px_64px_60px_72px] items-stretch px-2 py-0 text-[11px] ${
                     rowIndex % 2 === 0 ? "bg-white" : "bg-[#fbfcfe]"
                   }`}
                 >
@@ -761,7 +909,7 @@ function BattingRecordTable({
 
                   <span className="flex items-center justify-end">{computed?.ab ?? 0}</span>
                   <span className="flex items-center justify-end">{computed?.hits ?? 0}</span>
-                  <span className="flex items-center justify-end">
+                  <div className="flex items-center justify-end pl-1">
                     <input
                       type="number"
                       min="0"
@@ -779,8 +927,8 @@ function BattingRecordTable({
                       className="h-8 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[12px] leading-none"
                     />
                     <span className="sr-only">{computed?.runs ?? 0}</span>
-                  </span>
-                  <span className="flex items-center justify-end">
+                  </div>
+                  <div className="flex items-center justify-end pl-1">
                     <input
                       type="number"
                       min="0"
@@ -798,7 +946,7 @@ function BattingRecordTable({
                       className="h-8 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[12px] leading-none"
                     />
                     <span className="sr-only">{computed?.rbi ?? 0}</span>
-                  </span>
+                  </div>
                   <span className="flex items-center justify-end pr-1 font-semibold text-primary">
                     {computed?.avg ?? ".000"}
                   </span>
@@ -878,8 +1026,8 @@ function PitchingRecordTable({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-line">
-          <div className="min-w-[860px]">
-          <div className="grid grid-cols-[34px_94px_70px_50px_48px_62px_62px_42px_42px_42px_42px_42px_60px_52px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
+        <div className="min-w-[980px]">
+          <div className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_128px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
             <span>순번</span>
             <span>투수명</span>
             <span>역할</span>
@@ -903,7 +1051,7 @@ function PitchingRecordTable({
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[34px_94px_70px_50px_48px_62px_62px_42px_42px_42px_42px_42px_60px_52px] items-center px-2 py-1.5 text-[11px]"
+                  className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_128px] items-center px-2 py-1.5 text-[11px]"
                 >
                   <div className="flex justify-center">
                     <button
@@ -947,61 +1095,67 @@ function PitchingRecordTable({
                   />
                   <span className="text-right font-semibold text-primary">{computed?.ip ?? "0.0"}</span>
                   <span className="text-right">{computed?.hitsAllowed ?? 0}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={Number.isFinite(row.manualRuns ?? null) ? (row.manualRuns ?? 0) : ""}
-                    placeholder={String(computed?.runs ?? 0)}
-                    onChange={(event) =>
-                      onUpdatePitcher(
-                        row.id,
-                        "manualRuns",
-                        event.target.value === ""
-                          ? undefined
-                          : Number(event.target.value),
-                      )
-                    }
-                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    value={Number.isFinite(row.manualEarnedRuns ?? null) ? (row.manualEarnedRuns ?? 0) : ""}
-                    placeholder={String(computed?.earnedRuns ?? 0)}
-                    onChange={(event) =>
-                      onUpdatePitcher(
-                        row.id,
-                        "manualEarnedRuns",
-                        event.target.value === ""
-                          ? undefined
-                          : Number(event.target.value),
-                      )
-                    }
-                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
-                  />
+                  <div className="flex items-center justify-end pl-1">
+                    <input
+                      type="number"
+                      min="0"
+                      value={Number.isFinite(row.manualRuns ?? null) ? (row.manualRuns ?? 0) : ""}
+                      placeholder={String(computed?.runs ?? 0)}
+                      onChange={(event) =>
+                        onUpdatePitcher(
+                          row.id,
+                          "manualRuns",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
+                        )
+                      }
+                      className="h-7 w-full max-w-[58px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-end pl-1">
+                    <input
+                      type="number"
+                      min="0"
+                      value={Number.isFinite(row.manualEarnedRuns ?? null) ? (row.manualEarnedRuns ?? 0) : ""}
+                      placeholder={String(computed?.earnedRuns ?? 0)}
+                      onChange={(event) =>
+                        onUpdatePitcher(
+                          row.id,
+                          "manualEarnedRuns",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
+                        )
+                      }
+                      className="h-7 w-full max-w-[58px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                    />
+                  </div>
                   <span className="text-right">{computed?.walks ?? 0}</span>
                   <span className="text-right">{computed?.hitByPitch ?? 0}</span>
                   <span className="text-right">{computed?.atBats ?? 0}</span>
                   <span className="text-right">{computed?.batters ?? 0}</span>
                   <span className="text-right">{computed?.strikeouts ?? 0}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      Number.isFinite(row.manualPitches ?? null) ? (row.manualPitches ?? 0) : ""
-                    }
-                    placeholder={String(computed?.pitches ?? 0)}
-                    onChange={(event) =>
-                      onUpdatePitcher(
-                        row.id,
-                        "manualPitches",
-                        event.target.value === ""
-                          ? undefined
-                          : Number(event.target.value),
-                      )
-                    }
-                    className="h-7 w-full max-w-[56px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
-                  />
+                  <div className="flex items-center justify-end pl-1">
+                    <input
+                      type="number"
+                      min="0"
+                      value={
+                        Number.isFinite(row.manualPitches ?? null) ? (row.manualPitches ?? 0) : ""
+                      }
+                      placeholder={String(computed?.pitches ?? 0)}
+                      onChange={(event) =>
+                        onUpdatePitcher(
+                          row.id,
+                          "manualPitches",
+                          event.target.value === ""
+                            ? undefined
+                            : Number(event.target.value),
+                        )
+                      }
+                      className="h-7 w-full max-w-[60px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
+                    />
+                  </div>
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
@@ -1273,7 +1427,17 @@ function cloneRecord(record: SavedGameRecord): SavedGameRecord {
       })),
       pitchers: record.home.pitchers.map((row) => ({ ...row })),
     },
+    manualLineScore: record.manualLineScore
+      ? {
+          awayRuns: [...record.manualLineScore.awayRuns],
+          homeRuns: [...record.manualLineScore.homeRuns],
+        }
+      : undefined,
   };
+}
+
+function normalizeLineScoreInput(value: string) {
+  return value.replaceAll(/[^0-9]/g, "").slice(0, 2);
 }
 
 function getTeamPlayerNames(teams: TeamConfig[], teamId?: string) {

@@ -24,7 +24,9 @@ export function AdminGameForm() {
   const [gameStatusFilter, setGameStatusFilter] = useState<
     "전체" | "예정" | "종료" | "진행중"
   >("전체");
+  const [gameDateFilter, setGameDateFilter] = useState("전체");
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [playerListPage, setPlayerListPage] = useState(1);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -45,27 +47,41 @@ export function AdminGameForm() {
   );
   const hasTeamDraftChanges = teamDrafts !== null;
   const hasGameDraftChanges = gameDrafts !== null;
+  const gameDateOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          editableGames
+            .map((game) => game.date.trim())
+            .filter((date) => date.length > 0),
+        ),
+      ).sort((left, right) => right.localeCompare(left)),
+    [editableGames],
+  );
 
   const filteredGames = useMemo(() => {
-    if (gameStatusFilter === "전체") {
-      return editableGames;
-    }
+    return editableGames.filter((game) => {
+      const matchesStatus =
+        gameStatusFilter === "전체" ? true : game.status === gameStatusFilter;
+      const matchesDate =
+        gameDateFilter === "전체" ? true : game.date === gameDateFilter;
 
-    return editableGames.filter((game) => game.status === gameStatusFilter);
-  }, [editableGames, gameStatusFilter]);
+      return matchesStatus && matchesDate;
+    });
+  }, [editableGames, gameDateFilter, gameStatusFilter]);
 
   const selectedGame = filteredGames.find((game) => game.id === selectedGameId) ??
     filteredGames[0];
   const selectedGameIdForDisplay = selectedGame?.id ?? selectedGameId;
   const selectedTeam =
     editableTeams.find((team) => team.id === selectedTeamId) ?? editableTeams[0];
-
-  const apiPreviewPayload = useMemo(
-    () => ({
-      games: editableGames,
-      teams: editableTeams,
-    }),
-    [editableGames, editableTeams],
+  const playersPerPage = 10;
+  const selectedTeamPlayers = selectedTeam?.players ?? [];
+  const totalPlayerPages = Math.max(1, Math.ceil(selectedTeamPlayers.length / playersPerPage));
+  const currentPlayerPage = Math.min(playerListPage, totalPlayerPages);
+  const pagedPlayers = selectedTeamPlayers.slice(
+    (currentPlayerPage - 1) * playersPerPage,
+    currentPlayerPage * playersPerPage,
   );
 
   function updateTeamDrafts(
@@ -174,6 +190,7 @@ export function AdminGameForm() {
       ),
     );
     setNewPlayerName("");
+    setPlayerListPage(Math.ceil((selectedTeam.players.length + 1) / playersPerPage));
     setMessage({
       type: "success",
       text: `${selectedTeam.name} 선수 명단 초안에 ${trimmedName} 선수를 추가했습니다.`,
@@ -193,6 +210,7 @@ export function AdminGameForm() {
       },
     ]);
     setSelectedTeamId(nextTeamId);
+    setPlayerListPage(1);
     setMessage({
       type: "success",
       text: `${nextName} 팀 초안을 추가했습니다. 저장해야 전체 사이트에 반영됩니다.`,
@@ -223,6 +241,7 @@ export function AdminGameForm() {
     const nextTeams = editableTeams.filter((team) => team.id !== selectedTeam.id);
     setTeamDrafts(nextTeams);
     setSelectedTeamId(nextTeams[0]?.id ?? "");
+    setPlayerListPage(1);
     setNewPlayerName("");
     setMessage({
       type: "success",
@@ -256,6 +275,7 @@ export function AdminGameForm() {
     setTeamDrafts(null);
     setGameDrafts(null);
     setNewPlayerName("");
+    setPlayerListPage(1);
     setMessage({
       type: "success",
       text: "관리자 상태를 초기 mock 상태로 되돌렸습니다.",
@@ -263,7 +283,7 @@ export function AdminGameForm() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="space-y-5">
       <div className="space-y-5">
         <section className="rounded-[28px] border border-line bg-card p-5 shadow-[0_16px_40px_rgba(16,35,63,0.08)] sm:p-6">
           <div className="mb-5">
@@ -276,12 +296,32 @@ export function AdminGameForm() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,2.1fr)]">
             <div className="rounded-3xl bg-soft p-3">
               <div className="mb-3 flex items-center justify-between gap-3 px-2">
                 <p className="text-xs font-semibold text-muted">전체 경기 목록</p>
                 <span className="text-xs text-muted">{filteredGames.length}경기</span>
               </div>
+              <label className="mb-3 block px-2">
+                <span className="mb-2 block text-xs font-semibold text-muted">
+                  날짜 선택
+                </span>
+                <select
+                  value={gameDateFilter}
+                  onChange={(event) => {
+                    setGameDateFilter(event.target.value);
+                    setSelectedGameId("");
+                  }}
+                  className="h-11 w-full rounded-2xl border border-line bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                >
+                  <option value="전체">전체 날짜</option>
+                  {gameDateOptions.map((date) => (
+                    <option key={`game-date-${date}`} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="mb-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -627,7 +667,7 @@ export function AdminGameForm() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,2.2fr)]">
             <div className="rounded-3xl bg-soft p-3">
               <div className="mb-3 flex items-center justify-between gap-3 px-2">
                 <p className="text-xs font-semibold text-muted">팀 선택</p>
@@ -657,7 +697,10 @@ export function AdminGameForm() {
                     <button
                       key={team.id}
                       type="button"
-                      onClick={() => setSelectedTeamId(team.id)}
+                      onClick={() => {
+                        setSelectedTeamId(team.id);
+                        setPlayerListPage(1);
+                      }}
                       className={
                         isActive
                           ? "w-full rounded-2xl bg-primary px-4 py-3 text-left text-sm font-semibold text-white"
@@ -718,7 +761,10 @@ export function AdminGameForm() {
                 </div>
 
                 <div className="space-y-3">
-                  {selectedTeam?.players.map((player, index) => (
+                  {pagedPlayers.map((player, pageIndex) => {
+                    const index = (currentPlayerPage - 1) * playersPerPage + pageIndex;
+
+                    return (
                     <div
                       key={`${selectedTeam.id}-${index}`}
                       className="grid grid-cols-[minmax(0,1fr)_84px] gap-3"
@@ -765,8 +811,32 @@ export function AdminGameForm() {
                         삭제
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+
+                {totalPlayerPages > 1 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {Array.from({ length: totalPlayerPages }, (_, index) => {
+                      const page = index + 1;
+
+                      return (
+                        <button
+                          key={`player-page-${page}`}
+                          type="button"
+                          onClick={() => setPlayerListPage(page)}
+                          className={
+                            page === currentPlayerPage
+                              ? "rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white"
+                              : "rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold text-foreground"
+                          }
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
 
                 <div className="mt-4 grid grid-cols-[minmax(0,1fr)_96px] gap-3">
                   <input
@@ -798,6 +868,7 @@ export function AdminGameForm() {
                     onClick={() => {
                       setTeamDrafts(null);
                       setSelectedTeamId(state.teams[0]?.id ?? "");
+                      setPlayerListPage(1);
                       setNewPlayerName("");
                     }}
                     className="rounded-full border border-line bg-card px-5 py-3 text-sm font-medium text-foreground"
@@ -827,9 +898,9 @@ export function AdminGameForm() {
               관리자 페이지에서 저장한 최근 입력 경기 목록입니다.
             </p>
           </div>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {recentAdminGames.length === 0 ? (
-              <div className="rounded-3xl bg-soft p-4 text-sm text-muted">
+              <div className="rounded-3xl bg-soft p-4 text-sm text-muted md:col-span-2 2xl:col-span-3">
                 아직 관리자 입력으로 추가된 경기가 없습니다.
               </div>
             ) : (
@@ -862,22 +933,6 @@ export function AdminGameForm() {
         </section>
       </div>
 
-      <section className="rounded-[28px] border border-line bg-card p-5 shadow-[0_16px_40px_rgba(16,35,63,0.08)] sm:p-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            API 연결용 state 미리보기
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            현재 저장 예정인 games, teams 값을 그대로 보여줍니다.
-          </p>
-        </div>
-
-        <div className="rounded-3xl bg-[#0f1e35] p-4 text-xs leading-6 text-[#d9e6ff]">
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(apiPreviewPayload, null, 2)}
-          </pre>
-        </div>
-      </section>
     </div>
   );
 }

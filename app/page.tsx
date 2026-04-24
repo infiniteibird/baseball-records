@@ -122,10 +122,10 @@ export default function Home() {
                       {game.status}
                     </span>
                   </div>
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div>
+                  <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                    <div className="min-w-0">
                       <p className="text-xs text-muted">원정</p>
-                      <p className="text-xl font-bold text-foreground">
+                      <p className="truncate text-xl font-bold text-foreground">
                         {game.away}
                       </p>
                     </div>
@@ -135,9 +135,9 @@ export default function Home() {
                       </p>
                       <p className="text-xs text-muted">VS</p>
                     </div>
-                    <div className="text-right">
+                    <div className="min-w-0 text-right">
                       <p className="text-xs text-muted">홈</p>
-                      <p className="text-xl font-bold text-foreground">
+                      <p className="truncate text-xl font-bold text-foreground">
                         {game.home}
                       </p>
                     </div>

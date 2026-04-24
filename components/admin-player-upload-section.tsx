@@ -269,6 +269,11 @@ export function AdminPlayerUploadSection() {
           onDeletePlayer={(player) =>
             removeRosterPlayers([player])
           }
+          pagination={{
+            enabled: true,
+            itemsPerPage: 15,
+            showEdgeButtons: true,
+          }}
         />
       </div>
     </section>

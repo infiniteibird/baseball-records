@@ -3,6 +3,7 @@ type RecordCodeCategory =
   | "groundout"
   | "double_play"
   | "strikeout"
+  | "strikeout_reached"
   | "walk"
   | "intentional_walk"
   | "hit_by_pitch"
@@ -33,6 +34,7 @@ export const recordCodeCategoryLabel: Record<RecordCodeCategory, string> = {
   groundout: "아웃",
   double_play: "아웃",
   strikeout: "아웃",
+  strikeout_reached: "출루/안타",
   walk: "출루/안타",
   intentional_walk: "출루/안타",
   hit_by_pitch: "출루/안타",
@@ -115,7 +117,6 @@ function defineBatch(
 
 const outCodes = [
   "삼진",
-  "낫아웃",
   "투땅",
   "포땅",
   "1땅",
@@ -199,7 +200,6 @@ const outCodes = [
 
 const outAliasMap: Record<string, string[]> = {
   삼진: ["ㅅㅈ", "k"],
-  낫아웃: ["ㄴㅇㅇ"],
 };
 
 const hitSafeCodes = [
@@ -312,6 +312,8 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
     "out",
     outAliasMap,
   ),
+  createDefinition("낫아웃-", "strikeout", ["ㄴㅇㅇ-", "낫아웃 아웃"]),
+  createDefinition("낫아웃+", "strikeout_reached", ["ㄴㅇㅇ+", "낫아웃 출루"]),
   ...defineBatch(["투땅", "포땅"], "groundout", {}),
   ...defineBatch(["1땅", "2땅", "3땅", "유땅", "좌땅", "중땅", "우땅"], "groundout", {}),
   createDefinition("병살", "double_play", ["ㅂㅅ", "dp"]),
@@ -398,6 +400,7 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
   createDefinition("도루자", "caught_stealing", ["ㄷㄹㅈ", "cs"]),
   createDefinition("견제사", "pickoff", ["ㄱㅈㅅ"]),
   createDefinition("주루사", "baserunning_out", ["ㅈㄹㅅ"]),
+  createDefinition("주자아웃", "baserunning_out", ["ㅈㅈㅇ", "ao"]),
   ...defineBatch(
     ["타구맞음", "수비방해", "타격방해", "주루방해", "런다운", "포구실책", "송구실책", "승부주자"],
     "other_play",
@@ -429,6 +432,7 @@ const normalizedRecordCodeDefinitions = finalizeRecordCodes(finalDefinitions);
 
 const categoryOrder: RecordCodeCategory[] = [
   "strikeout",
+  "strikeout_reached",
   "out",
   "groundout",
   "double_play",
@@ -480,6 +484,15 @@ function finalizeRecordCodes(
 export const recordCodeMap = new Map(
   recordCodeDefinitionsSorted.map((item) => [item.code, item] as const),
 );
+
+const legacyDroppedThirdStrike = recordCodeMap.get("낫아웃-");
+if (legacyDroppedThirdStrike) {
+  recordCodeMap.set("낫아웃", {
+    ...legacyDroppedThirdStrike,
+    code: "낫아웃",
+    aliases: Array.from(new Set(["낫아웃", ...legacyDroppedThirdStrike.aliases])),
+  });
+}
 
 export function searchRecordCodes(query: string) {
   const normalizedQuery = normalizeSearch(query);

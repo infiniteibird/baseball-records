@@ -8,14 +8,21 @@ export function PlayerRosterList({
   title,
   subtitle,
   onDeletePlayer,
+  pagination,
 }: Readonly<{
   players: UploadedPlayer[];
   title: string;
   subtitle: string;
   onDeletePlayer?: (player: UploadedPlayer) => void;
+  pagination?: {
+    enabled: boolean;
+    itemsPerPage: number;
+    showEdgeButtons?: boolean;
+  };
 }>) {
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("전체");
+  const [page, setPage] = useState(1);
   const deferredSearch = useDeferredValue(search);
 
   const teamOptions = useMemo(
@@ -43,6 +50,22 @@ export function PlayerRosterList({
     });
   }, [deferredSearch, players, selectedTeam]);
 
+  const paginationEnabled = pagination?.enabled === true;
+  const fallbackItemsPerPage = filteredPlayers.length || 1;
+  const requestedItemsPerPage =
+    pagination?.itemsPerPage ?? fallbackItemsPerPage;
+  const itemsPerPage = Math.max(1, requestedItemsPerPage);
+  const totalPages = paginationEnabled
+    ? Math.max(1, Math.ceil(filteredPlayers.length / itemsPerPage))
+    : 1;
+  const currentPage = Math.min(page, totalPages);
+  const pagedPlayers = paginationEnabled
+    ? filteredPlayers.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage,
+      )
+    : filteredPlayers;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -58,7 +81,10 @@ export function PlayerRosterList({
             </span>
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               placeholder="선수 이름"
               className="h-11 w-full rounded-2xl border border-line bg-white px-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-primary"
             />
@@ -70,7 +96,10 @@ export function PlayerRosterList({
             </span>
             <select
               value={selectedTeam}
-              onChange={(event) => setSelectedTeam(event.target.value)}
+              onChange={(event) => {
+                setSelectedTeam(event.target.value);
+                setPage(1);
+              }}
               className="h-11 w-full rounded-2xl border border-line bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary"
             >
               <option value="전체">전체</option>
@@ -84,6 +113,54 @@ export function PlayerRosterList({
         </div>
       </div>
 
+      {paginationEnabled ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-semibold text-muted">
+            총 {filteredPlayers.length}명 · {currentPage}/{totalPages} 페이지
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {pagination?.showEdgeButtons ? (
+              <button
+                type="button"
+                onClick={() => setPage(1)}
+                disabled={currentPage === 1}
+                className="rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
+              >
+                맨 앞으로
+              </button>
+            ) : null}
+            {Array.from({ length: totalPages }, (_, index) => {
+              const nextPage = index + 1;
+
+              return (
+                <button
+                  key={`roster-page-${nextPage}`}
+                  type="button"
+                  onClick={() => setPage(nextPage)}
+                  className={
+                    nextPage === currentPage
+                      ? "rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white"
+                      : "rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold text-foreground"
+                  }
+                >
+                  {nextPage}
+                </button>
+              );
+            })}
+            {pagination?.showEdgeButtons ? (
+              <button
+                type="button"
+                onClick={() => setPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-40"
+              >
+                맨 뒤로
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-3xl border border-line">
         <div className="grid grid-cols-[1fr_1fr_88px] bg-soft px-4 py-3 text-xs font-semibold text-muted">
           <span>이름</span>
@@ -91,12 +168,12 @@ export function PlayerRosterList({
           <span>관리</span>
         </div>
         <div className="divide-y divide-line bg-card">
-          {filteredPlayers.length === 0 ? (
+          {pagedPlayers.length === 0 ? (
             <div className="px-4 py-6 text-sm text-muted">
               표시할 선수가 없습니다.
             </div>
           ) : (
-            filteredPlayers.map((player) => (
+            pagedPlayers.map((player) => (
               <div
                 key={player.id}
                 className="grid grid-cols-[1fr_1fr_88px] items-center px-4 py-3 text-sm"

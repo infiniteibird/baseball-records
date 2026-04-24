@@ -357,12 +357,13 @@ function SummaryValue({
 
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1">
-      {parts.map((part) => {
+      {parts.map((part, index) => {
         const matched = part.match(/^(.+?)(\(.+\))$/);
+        const key = `summary-part-${index}-${part}`;
 
         if (!matched) {
           return (
-            <span key={part} className="text-foreground">
+            <span key={key} className="text-foreground">
               {part}
             </span>
           );
@@ -371,7 +372,7 @@ function SummaryValue({
         const [, name, inning] = matched;
 
         return (
-          <span key={part}>
+          <span key={key}>
             <strong className="font-semibold text-foreground">{name}</strong>
             <span className="font-normal text-muted">{inning}</span>
           </span>
@@ -626,9 +627,9 @@ function PitchingTable({
           <span className="text-right">세이브</span>
         </div>
         <div className="divide-y divide-line bg-card">
-          {rows.map((row) => (
+          {rows.map((row, rowIndex) => (
             <div
-              key={row.name}
+              key={`${row.name}-${row.gameType}-${rowIndex}`}
               className="grid grid-cols-[120px_70px_70px_56px_56px_70px_56px_70px_56px_56px_70px_90px_70px_70px_70px] items-center px-4 py-3 text-sm"
             >
               <span className="font-medium text-foreground">{row.name}</span>

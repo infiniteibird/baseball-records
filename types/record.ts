@@ -32,10 +32,16 @@ export type TeamRecordDraft = {
 
 export type TeamPitcherAssignment = Record<string, number>;
 
+export type ManualLineScore = {
+  awayRuns: string[];
+  homeRuns: string[];
+};
+
 export type SavedGameRecord = {
   gameId: string;
   updatedAt: string;
   saveStatus: RecordSaveStatus;
   away: TeamRecordDraft;
   home: TeamRecordDraft;
+  manualLineScore?: ManualLineScore;
 };

@@ -43,13 +43,25 @@ function estimatePitchCount(outs: number, hitsAllowed: number, strikeouts: numbe
 }
 
 export function createPitchingSequence(batters: BatterRecordRow[]): PitcherSequenceSlot[] {
+  const lineup = createLineupOrder(batters);
   const slots: PitcherSequenceSlot[] = [];
   let sequenceIndex = 0;
+  let nextStarterIndex = 0;
 
-  batters.forEach((batter) => {
-    batter.inningResults.forEach((entries, inningIndex) => {
+  for (let inningIndex = 0; inningIndex < 9; inningIndex += 1) {
+    if (lineup.length === 0) {
+      break;
+    }
+
+    let lastBatterIndex: number | null = null;
+
+    for (let offset = 0; offset < lineup.length; offset += 1) {
+      const batterIndex = (nextStarterIndex + offset) % lineup.length;
+      const batter = lineup[batterIndex];
+      const entries = batter.inningResults[inningIndex] ?? [];
+
       if (entries.length === 0) {
-        return;
+        continue;
       }
 
       slots.push({
@@ -59,8 +71,13 @@ export function createPitchingSequence(batters: BatterRecordRow[]): PitcherSeque
         entries,
         sequenceIndex: sequenceIndex++,
       });
-    });
-  });
+      lastBatterIndex = batterIndex;
+    }
+
+    if (lastBatterIndex !== null) {
+      nextStarterIndex = (lastBatterIndex + 1) % lineup.length;
+    }
+  }
 
   return slots;
 }
@@ -102,6 +119,10 @@ function accumulatePitcherTotalsByEntries(entries: RecordCellEntry[]): RawPitche
           accumulator.atBats += 1;
           accumulator.outs += 1;
           break;
+        case "strikeout_reached":
+          accumulator.strikeouts += 1;
+          accumulator.atBats += 1;
+          break;
         case "walk":
         case "intentional_walk":
           accumulator.walks += 1;
@@ -125,6 +146,11 @@ function accumulatePitcherTotalsByEntries(entries: RecordCellEntry[]): RawPitche
         case "error":
         case "fielders_choice":
           accumulator.atBats += 1;
+          break;
+        case "caught_stealing":
+        case "pickoff":
+        case "baserunning_out":
+          accumulator.outs += 1;
           break;
         case "run_scored":
           accumulator.runs += 1;
@@ -245,6 +271,16 @@ function fallbackAllToStarter(
   return pitchers.map((pitcher, index) =>
     index === 0 ? fullInterval : null,
   );
+}
+
+function createLineupOrder(batters: BatterRecordRow[]) {
+  return [...batters].sort((left, right) => {
+    if (left.battingOrder !== right.battingOrder) {
+      return left.battingOrder - right.battingOrder;
+    }
+
+    return left.playerName.localeCompare(right.playerName, "ko");
+  });
 }
 
 export function buildPitchingRowsFromAssignments(

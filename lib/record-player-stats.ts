@@ -215,6 +215,10 @@ function aggregateBattersByTeam(
             current.so += 1;
             current.ab += 1;
             break;
+          case "strikeout_reached":
+            current.so += 1;
+            current.ab += 1;
+            break;
           case "groundout":
           case "out":
             current.ab += 1;
@@ -301,7 +305,7 @@ function aggregatePitchingRows(
 
 function formatRate(numerator: number, denominator: number) {
   if (denominator <= 0) {
-    return "0.000";
+    return ".000";
   }
 
   const ratio = Math.round((numerator / denominator) * 1000) / 1000;

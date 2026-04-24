@@ -63,7 +63,7 @@ const recordReferenceSections = [
   {
     title: "기타 특수 기록",
     description: "실책, 폭투, 포일, 방해, 런다운 등 특수 상황 기록입니다.",
-    categories: ["error", "other_play"],
+    categories: ["error", "other_play", "substitution"],
     accentClass: "border-[#e5d5ec] bg-[#fbf7fd]",
   },
   {
@@ -173,6 +173,48 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
     }));
   }
 
+  function setPitcherDecision(
+    team: "away" | "home",
+    rowId: string,
+    field: "win" | "loss" | "save",
+  ) {
+    updateDraft((current) => {
+      const currentValue = current[team].pitchers.find((row) => row.id === rowId)?.[field] === true;
+      const nextValue = !currentValue;
+
+      const clearField = (rows: PitcherRecordRow[]) =>
+        rows.map((row) => ({
+          ...row,
+          [field]: false,
+        }));
+
+      const applySelection = (rows: PitcherRecordRow[], targetTeam: "away" | "home") =>
+        clearField(rows).map((row) =>
+          row.id === rowId && team === targetTeam
+            ? {
+                ...row,
+                [field]: nextValue,
+                ...(field !== "win" ? { win: false } : {}),
+                ...(field !== "loss" ? { loss: false } : {}),
+                ...(field !== "save" ? { save: false } : {}),
+              }
+            : row,
+        );
+
+      return {
+        ...current,
+        away: {
+          ...current.away,
+          pitchers: applySelection(current.away.pitchers, "away"),
+        },
+        home: {
+          ...current.home,
+          pitchers: applySelection(current.home.pitchers, "home"),
+        },
+      };
+    });
+  }
+
   function updateManualLineScore(
     team: "away" | "home",
     inningIndex: number,
@@ -201,6 +243,22 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
               : homeRuns[index] ?? ""
             : homeRuns[index] ?? "",
         ),
+      },
+    }));
+  }
+
+  function updateOfficial(
+    field: "homePlateUmpire" | "baseUmpire" | "scorekeeper1" | "scorekeeper2",
+    value: string,
+  ) {
+    updateDraft((current) => ({
+      ...current,
+      officials: {
+        homePlateUmpire: current.officials?.homePlateUmpire ?? "",
+        baseUmpire: current.officials?.baseUmpire ?? "",
+        scorekeeper1: current.officials?.scorekeeper1 ?? "",
+        scorekeeper2: current.officials?.scorekeeper2 ?? "",
+        [field]: value,
       },
     }));
   }
@@ -446,6 +504,48 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
               <p>{detailPreview.awayTeam} vs {detailPreview.homeTeam}</p>
               <p>상태: {game.status}</p>
             </div>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold text-muted">주심</span>
+                <input
+                  type="text"
+                  value={editableRecord.officials?.homePlateUmpire ?? ""}
+                  onChange={(event) => updateOfficial("homePlateUmpire", event.target.value)}
+                  placeholder="직접 입력"
+                  className="h-9 w-full rounded-xl border border-line bg-white px-3 text-sm leading-none"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold text-muted">루심</span>
+                <input
+                  type="text"
+                  value={editableRecord.officials?.baseUmpire ?? ""}
+                  onChange={(event) => updateOfficial("baseUmpire", event.target.value)}
+                  placeholder="직접 입력"
+                  className="h-9 w-full rounded-xl border border-line bg-white px-3 text-sm leading-none"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold text-muted">기록원1</span>
+                <input
+                  type="text"
+                  value={editableRecord.officials?.scorekeeper1 ?? ""}
+                  onChange={(event) => updateOfficial("scorekeeper1", event.target.value)}
+                  placeholder="직접 입력"
+                  className="h-9 w-full rounded-xl border border-line bg-white px-3 text-sm leading-none"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold text-muted">기록원2</span>
+                <input
+                  type="text"
+                  value={editableRecord.officials?.scorekeeper2 ?? ""}
+                  onChange={(event) => updateOfficial("scorekeeper2", event.target.value)}
+                  placeholder="직접 입력"
+                  className="h-9 w-full rounded-xl border border-line bg-white px-3 text-sm leading-none"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="rounded-3xl bg-soft p-4 text-center">
@@ -583,6 +683,9 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
                 createEmptyBatterRow(rows.length + 1, `${detailPreview.awayTeam} 타자 ${rows.length + 1}`),
               ])
             }
+            onAddBatterBelow={(rowId) =>
+              updateBatters("away", (rows) => insertBatterRowBelow(rows, rowId))
+            }
             onRemoveBatter={(rowId) =>
               updateBatters("away", (rows) => rows.filter((row) => row.id !== rowId))
             }
@@ -612,6 +715,9 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
                 ...rows,
                 createEmptyBatterRow(rows.length + 1, `${detailPreview.homeTeam} 타자 ${rows.length + 1}`),
               ])
+            }
+            onAddBatterBelow={(rowId) =>
+              updateBatters("home", (rows) => insertBatterRowBelow(rows, rowId))
             }
             onRemoveBatter={(rowId) =>
               updateBatters("home", (rows) => rows.filter((row) => row.id !== rowId))
@@ -659,6 +765,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
                 ),
               )
             }
+            onSetDecision={(rowId, field) => setPitcherDecision("away", rowId, field)}
           />
           <PitchingRecordTable
             title={detailPreview.homeTeam}
@@ -687,6 +794,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
                 ),
               )
             }
+            onSetDecision={(rowId, field) => setPitcherDecision("home", rowId, field)}
           />
         </div>
       </SectionCard>
@@ -756,6 +864,7 @@ function BattingRecordTable({
   onApplyCode,
   onClearCell,
   onAddBatter,
+  onAddBatterBelow,
   onRemoveBatter,
   onUpdateRow,
 }: Readonly<{
@@ -778,6 +887,7 @@ function BattingRecordTable({
   onApplyCode: (code: string) => void;
   onClearCell: (team: "away" | "home", rowId: string, inningIndex: number) => void;
   onAddBatter: () => void;
+  onAddBatterBelow: (rowId: string) => void;
   onRemoveBatter: (rowId: string) => void;
   onUpdateRow: (
     rowId: string,
@@ -845,16 +955,26 @@ function BattingRecordTable({
                     />
                   </div>
                   <div className="flex items-center">
-                    <input
-                      type="text"
-                      value={row.playerName}
-                      list={`batter-${teamKey}-${row.id}`}
-                      onChange={(event) =>
-                        onUpdateRow(row.id, "playerName", event.target.value)
-                      }
-                      className="h-8 w-full rounded-lg border border-line bg-white px-2 text-[12px] leading-none"
-                      placeholder="선수 선택 또는 입력"
-                    />
+                    <div className="flex w-full items-center gap-1">
+                      <input
+                        type="text"
+                        value={row.playerName}
+                        list={`batter-${teamKey}-${row.id}`}
+                        onChange={(event) =>
+                          onUpdateRow(row.id, "playerName", event.target.value)
+                        }
+                        className="h-8 w-full rounded-lg border border-line bg-white px-2 text-[12px] leading-none"
+                        placeholder="선수 선택 또는 입력"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onAddBatterBelow(row.id)}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-sm font-semibold text-primary"
+                        aria-label={`${row.battingOrder}번 타자 행 추가`}
+                      >
+                        +
+                      </button>
+                    </div>
                     {playerOptions.length > 0 ? (
                       <datalist id={`batter-${teamKey}-${row.id}`}>
                         {playerOptions.map((playerName) => (
@@ -981,6 +1101,7 @@ function PitchingRecordTable({
   onAddPitcher,
   onRemovePitcher,
   onUpdatePitcher,
+  onSetDecision,
 }: Readonly<{
   title: string;
   teamKey: "away" | "home";
@@ -1008,6 +1129,7 @@ function PitchingRecordTable({
     field: "name" | "role" | "manualRuns" | "manualEarnedRuns" | "manualPitches",
     value: string | number | undefined,
   ) => void;
+  onSetDecision: (rowId: string, field: "win" | "loss" | "save") => void;
 }>) {
   return (
     <div className="space-y-3">
@@ -1026,8 +1148,8 @@ function PitchingRecordTable({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-line">
-        <div className="min-w-[980px]">
-          <div className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_128px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
+        <div className="min-w-[1120px]">
+          <div className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_44px_44px_50px_128px] items-center bg-soft px-2 py-2 text-[10px] font-semibold text-muted">
             <span>순번</span>
             <span>투수명</span>
             <span>역할</span>
@@ -1041,6 +1163,9 @@ function PitchingRecordTable({
             <span className="text-right">타자</span>
             <span className="text-right">삼진</span>
             <span className="text-right">투구수</span>
+            <span className="text-center">승</span>
+            <span className="text-center">패</span>
+            <span className="text-center">세</span>
             <span className="text-right">삭제</span>
           </div>
 
@@ -1051,7 +1176,7 @@ function PitchingRecordTable({
               return (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_128px] items-center px-2 py-1.5 text-[11px]"
+                  className="grid grid-cols-[34px_98px_72px_52px_48px_64px_64px_44px_44px_44px_44px_44px_64px_44px_44px_50px_128px] items-center px-2 py-1.5 text-[11px]"
                 >
                   <div className="flex justify-center">
                     <button
@@ -1155,6 +1280,45 @@ function PitchingRecordTable({
                       }
                       className="h-7 w-full max-w-[60px] rounded-lg border border-line bg-white px-2 text-right text-[11px] leading-none"
                     />
+                  </div>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => onSetDecision(row.id, "win")}
+                      className={`h-7 w-7 rounded-full border text-[10px] font-semibold ${
+                        row.win
+                          ? "border-[#2d6a4f] bg-[#e8f5eb] text-[#2d6a4f]"
+                          : "border-line bg-white text-muted"
+                      }`}
+                    >
+                      승
+                    </button>
+                  </div>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => onSetDecision(row.id, "loss")}
+                      className={`h-7 w-7 rounded-full border text-[10px] font-semibold ${
+                        row.loss
+                          ? "border-[#a83333] bg-[#fff1f1] text-[#a83333]"
+                          : "border-line bg-white text-muted"
+                      }`}
+                    >
+                      패
+                    </button>
+                  </div>
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => onSetDecision(row.id, "save")}
+                      className={`h-7 w-8 rounded-full border text-[10px] font-semibold ${
+                        row.save
+                          ? "border-primary bg-primary/15 text-primary"
+                          : "border-line bg-white text-muted"
+                      }`}
+                    >
+                      세
+                    </button>
                   </div>
                   <div className="flex justify-end gap-2">
                     <button
@@ -1392,18 +1556,34 @@ function RecordCodeEditor({
   );
 }
 
-function createEmptyBatterRow(order: number, name: string): BatterRecordRow {
+function createEmptyBatterRow(order: number, name: string, position = "CF"): BatterRecordRow {
   return {
     id: createId("batter"),
     battingOrder: order,
     playerName: name,
-    position: "CF",
+    position,
     inningResults: Array.from({ length: 9 }, () => []),
   };
 }
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function insertBatterRowBelow(rows: BatterRecordRow[], rowId: string) {
+  const rowIndex = rows.findIndex((row) => row.id === rowId);
+  if (rowIndex < 0) {
+    return rows;
+  }
+
+  const sourceRow = rows[rowIndex];
+  const nextRows = [...rows];
+  nextRows.splice(
+    rowIndex + 1,
+    0,
+    createEmptyBatterRow(sourceRow.battingOrder, "", sourceRow.position),
+  );
+  return nextRows;
 }
 
 function cloneRecord(record: SavedGameRecord): SavedGameRecord {
@@ -1431,6 +1611,14 @@ function cloneRecord(record: SavedGameRecord): SavedGameRecord {
       ? {
           awayRuns: [...record.manualLineScore.awayRuns],
           homeRuns: [...record.manualLineScore.homeRuns],
+        }
+      : undefined,
+    officials: record.officials
+      ? {
+          homePlateUmpire: record.officials.homePlateUmpire,
+          baseUmpire: record.officials.baseUmpire,
+          scorekeeper1: record.officials.scorekeeper1,
+          scorekeeper2: record.officials.scorekeeper2,
         }
       : undefined,
   };

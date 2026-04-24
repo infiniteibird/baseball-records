@@ -4,6 +4,7 @@ type RecordCodeCategory =
   | "double_play"
   | "strikeout"
   | "strikeout_reached"
+  | "substitution"
   | "walk"
   | "intentional_walk"
   | "hit_by_pitch"
@@ -35,6 +36,7 @@ export const recordCodeCategoryLabel: Record<RecordCodeCategory, string> = {
   double_play: "아웃",
   strikeout: "아웃",
   strikeout_reached: "출루/안타",
+  substitution: "교체/출장",
   walk: "출루/안타",
   intentional_walk: "출루/안타",
   hit_by_pitch: "출루/안타",
@@ -116,7 +118,6 @@ function defineBatch(
 }
 
 const outCodes = [
-  "삼진",
   "투땅",
   "포땅",
   "1땅",
@@ -312,6 +313,7 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
     "out",
     outAliasMap,
   ),
+  createDefinition("삼진", "strikeout", outAliasMap.삼진 ?? ["ㅅㅈ", "k"]),
   createDefinition("낫아웃-", "strikeout", ["ㄴㅇㅇ-", "낫아웃 아웃"]),
   createDefinition("낫아웃+", "strikeout_reached", ["ㄴㅇㅇ+", "낫아웃 출루"]),
   ...defineBatch(["투땅", "포땅"], "groundout", {}),
@@ -321,6 +323,9 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
   createDefinition("야수선택", "fielders_choice", ["ㅅㅅㅌ", "fc"]),
   createDefinition("희번", "sac_bunt", ["ㅎㅂ", "sac bunt"]),
   createDefinition("희플", "sac_fly", ["ㅎㅍ", "sac fly"]),
+  createDefinition("대타", "substitution", ["ㄷㅌ"]),
+  createDefinition("대주자", "substitution", ["ㄷㅈㅈ"]),
+  createDefinition("대수비", "substitution", ["ㄷㅅㅂ"]),
   ...defineBatch(
     ["실책"],
     "error",
@@ -433,6 +438,7 @@ const normalizedRecordCodeDefinitions = finalizeRecordCodes(finalDefinitions);
 const categoryOrder: RecordCodeCategory[] = [
   "strikeout",
   "strikeout_reached",
+  "substitution",
   "out",
   "groundout",
   "double_play",

@@ -36,6 +36,9 @@ type RawPitcherAccumulator = {
   homeRunsAllowed: number;
   batters: number;
   atBats: number;
+  wins: number;
+  losses: number;
+  saves: number;
 };
 
 export function buildRecordedPlayerHittingStats(
@@ -132,9 +135,9 @@ export function buildRecordedPlayerPitchingStats(
           : ((row.walks + row.hitByPitch + row.hitsAllowed) / inningsDecimal).toFixed(2),
         ip,
         so: row.strikeouts,
-        wins: 0,
-        losses: 0,
-        saves: 0,
+        wins: row.wins,
+        losses: row.losses,
+        saves: row.saves,
       } satisfies StoredPitcherStat;
     })
     .sort((a, b) => {
@@ -262,6 +265,9 @@ function aggregatePitchingRows(
     atBats: number;
     pitches: number;
     ip: string;
+    win: string;
+    loss: string;
+    save: string;
   }>,
   teamId: string,
   pitcherMap: Map<string, RawPitcherAccumulator>,
@@ -286,6 +292,9 @@ function aggregatePitchingRows(
       homeRunsAllowed: 0,
       batters: 0,
       atBats: 0,
+      wins: 0,
+      losses: 0,
+      saves: 0,
     };
 
     pitcherMap.set(key, {
@@ -299,6 +308,9 @@ function aggregatePitchingRows(
       homeRunsAllowed: base.homeRunsAllowed + row.homeRunsAllowed,
       batters: base.batters + row.batters,
       atBats: base.atBats + row.atBats,
+      wins: base.wins + (row.win === "승" ? 1 : 0),
+      losses: base.losses + (row.loss === "패" ? 1 : 0),
+      saves: base.saves + (row.save === "세" ? 1 : 0),
     });
   }
 }

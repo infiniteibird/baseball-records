@@ -19,6 +19,9 @@ export type PitcherRecordRow = {
   id: string;
   name: string;
   role: string;
+  win?: boolean;
+  loss?: boolean;
+  save?: boolean;
   manualRuns?: number;
   manualEarnedRuns?: number;
   manualPitches?: number;
@@ -37,6 +40,13 @@ export type ManualLineScore = {
   homeRuns: string[];
 };
 
+export type GameOfficials = {
+  homePlateUmpire: string;
+  baseUmpire: string;
+  scorekeeper1: string;
+  scorekeeper2: string;
+};
+
 export type SavedGameRecord = {
   gameId: string;
   updatedAt: string;
@@ -44,4 +54,5 @@ export type SavedGameRecord = {
   away: TeamRecordDraft;
   home: TeamRecordDraft;
   manualLineScore?: ManualLineScore;
+  officials?: GameOfficials;
 };

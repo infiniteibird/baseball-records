@@ -668,6 +668,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
       updatedAt?: unknown;
       saveStatus?: unknown;
       manualLineScore?: unknown;
+      officials?: unknown;
       away?: unknown;
       home?: unknown;
     };
@@ -691,6 +692,10 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
       manualLineScore:
         typeof rawRecord.manualLineScore === "object" && rawRecord.manualLineScore !== null
           ? (rawRecord.manualLineScore as SavedGameRecord["manualLineScore"])
+          : undefined,
+      officials:
+        typeof rawRecord.officials === "object" && rawRecord.officials !== null
+          ? (rawRecord.officials as SavedGameRecord["officials"])
           : undefined,
     };
   });

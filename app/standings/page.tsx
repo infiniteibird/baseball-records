@@ -91,9 +91,10 @@ export default function StandingsPage() {
           title="팀 순위"
           subtitle="종료된 경기 기준 자동 계산 결과입니다."
         >
-          <div className="overflow-x-auto">
-            <div className="min-w-[840px] overflow-hidden rounded-2xl border border-line">
-              <div className="grid grid-cols-[40px_82px_48px_34px_34px_34px_46px_56px_76px_86px_108px] items-center bg-soft px-3 py-2 text-[11px] font-semibold text-muted">
+          <div className="overflow-x-auto pb-2">
+            <div className="inline-block min-w-full pr-6 align-top">
+              <div className="w-max min-w-full overflow-hidden rounded-2xl border border-line">
+                <div className="grid grid-cols-[52px_120px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 bg-soft px-4 py-3 text-xs font-semibold text-muted">
                 <span>순위</span>
                 <span>팀명</span>
                 <span className="text-right">경기</span>
@@ -105,48 +106,49 @@ export default function StandingsPage() {
                 <span className="text-right">실점/이닝</span>
                 <span className="text-right">득점/이닝</span>
                 <span className="text-right">출루/타석</span>
-              </div>
-              <div className="divide-y divide-line bg-card">
-                {displayedStandings.map((team) => (
-                  <div
-                    key={team.team}
-                    className="grid grid-cols-[40px_82px_48px_34px_34px_34px_46px_56px_76px_86px_108px] items-center gap-x-2 px-3 py-2 text-[11px]"
-                  >
-                    <span className="font-bold text-primary">{team.rank}</span>
-                    <span className="font-semibold text-foreground">
-                      {team.team}
-                    </span>
-                    <span className="text-right text-muted">{team.games}</span>
-                    <span className="text-right font-semibold text-foreground">
-                      {team.wins}
-                    </span>
-                    <span className="text-right text-muted">{team.losses}</span>
-                    <span className="text-right text-muted">{team.draws}</span>
-                    <span className="text-right font-semibold text-accent">
-                      {team.points}
-                    </span>
-                    <span className="text-right font-semibold text-primary">
-                      {team.winRate}
-                    </span>
-                    <span className="text-right text-foreground">
-                      {renderRateCell(
-                        team.runsAgainst,
-                        team.defenseInnings,
-                        team.runAllowedRate,
-                      )}
-                    </span>
-                    <span className="text-right text-foreground">
-                      {renderRateCell(team.runsFor, team.offenseInnings, team.scoringRate)}
-                    </span>
-                    <span className="text-right text-foreground">
-                      {renderOnBaseRate(
-                        team.onBase,
-                        team.plateAppearances,
-                        team.onBaseRate,
-                      )}
-                    </span>
-                  </div>
-                ))}
+                </div>
+                <div className="divide-y divide-line bg-card">
+                  {displayedStandings.map((team) => (
+                    <div
+                      key={team.team}
+                      className="grid grid-cols-[52px_120px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 px-4 py-3 text-xs"
+                    >
+                      <span className="font-bold text-primary">{team.rank}</span>
+                      <span className="truncate font-semibold text-foreground">
+                        {team.team}
+                      </span>
+                      <span className="text-right text-muted">{team.games}</span>
+                      <span className="text-right font-semibold text-foreground">
+                        {team.wins}
+                      </span>
+                      <span className="text-right text-muted">{team.losses}</span>
+                      <span className="text-right text-muted">{team.draws}</span>
+                      <span className="text-right font-semibold text-accent">
+                        {team.points}
+                      </span>
+                      <span className="text-right font-semibold text-primary">
+                        {team.winRate}
+                      </span>
+                      <span className="text-right tabular-nums text-foreground">
+                        {renderRateCell(
+                          team.runsAgainst,
+                          team.defenseInnings,
+                          team.runAllowedRate,
+                        )}
+                      </span>
+                      <span className="text-right tabular-nums text-foreground">
+                        {renderRateCell(team.runsFor, team.offenseInnings, team.scoringRate)}
+                      </span>
+                      <span className="text-right tabular-nums text-foreground">
+                        {renderOnBaseRate(
+                          team.onBase,
+                          team.plateAppearances,
+                          team.onBaseRate,
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

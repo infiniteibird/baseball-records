@@ -1,4 +1,4 @@
-export type PositionCode = "P" | "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF" | "DH";
+export type PositionCode = "P" | "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF" | "DH" | "미정";
 
 export type PositionOption = {
   value: PositionCode;
@@ -16,6 +16,7 @@ export const POSITION_OPTIONS: PositionOption[] = [
   { value: "CF", label: "중견수" },
   { value: "RF", label: "우익수" },
   { value: "DH", label: "지명타자" },
+  { value: "미정", label: "미정" },
 ] as const;
 
 const legacyPositionAlias: Record<string, PositionCode> = {
@@ -31,6 +32,7 @@ const legacyPositionAlias: Record<string, PositionCode> = {
   우: "RF",
   DH: "DH",
   타: "CF",
+  미정: "미정",
 };
 
 const positionLabelMap = new Map(POSITION_OPTIONS.map((item) => [item.value, item.label]));

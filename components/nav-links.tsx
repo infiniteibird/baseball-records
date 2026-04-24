@@ -8,6 +8,7 @@ const navItems = [
   { href: "/games", label: "경기 결과" },
   { href: "/standings", label: "팀 순위" },
   { href: "/players", label: "선수 기록" },
+  { href: "/teams", label: "팀 페이지" },
   { href: "/admin", label: "관리자 입력" },
 ];
 

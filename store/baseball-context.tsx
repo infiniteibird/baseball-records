@@ -832,6 +832,9 @@ function inningsFromRecordDefinition(category: string) {
     case "out":
     case "groundout":
     case "strikeout":
+    case "caught_stealing":
+    case "pickoff":
+    case "baserunning_out":
     case "sac_bunt":
     case "sac_fly":
       return 1;

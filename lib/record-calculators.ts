@@ -91,13 +91,25 @@ export function createInitialRecordForGame(
   const awayPitchers =
     mockDetail?.pitchingStats
       .filter((row) => row.team === "away")
-      .map((row, index) => toPitcherRow(row.name, row.gameType || `투수 ${index + 1}`))
+      .map((row, index) =>
+        toPitcherRow(row.name, row.gameType || `투수 ${index + 1}`, {
+          win: row.win === "승",
+          loss: row.loss === "패",
+          save: row.save === "세",
+        }),
+      )
       ?? buildDefaultPitchers(awayTeam);
 
   const homePitchers =
     mockDetail?.pitchingStats
       .filter((row) => row.team === "home")
-      .map((row, index) => toPitcherRow(row.name, row.gameType || `투수 ${index + 1}`))
+      .map((row, index) =>
+        toPitcherRow(row.name, row.gameType || `투수 ${index + 1}`, {
+          win: row.win === "승",
+          loss: row.loss === "패",
+          save: row.save === "세",
+        }),
+      )
       ?? buildDefaultPitchers(homeTeam);
 
   return {
@@ -113,6 +125,12 @@ export function createInitialRecordForGame(
       batters: homeBatters,
       pitchers: homePitchers,
       pitcherAssignments: {},
+    },
+    officials: {
+      homePlateUmpire: "",
+      baseUmpire: "",
+      scorekeeper1: "",
+      scorekeeper2: "",
     },
   };
 }
@@ -217,7 +235,7 @@ export function buildGameDetailFromRecord(
       baserunningOuts: formatSummaryList(awaySummary.summaryLists.baserunningOuts, homeSummary.summaryLists.baserunningOuts),
       pickoffs: formatSummaryList(awaySummary.summaryLists.pickoffs, homeSummary.summaryLists.pickoffs),
       passedBalls: formatSummaryList(awaySummary.summaryLists.passedBalls, homeSummary.summaryLists.passedBalls),
-      umpires: "관리자 기록 입력 페이지에서 미입력",
+      umpires: formatOfficialsSummary(record.officials),
     },
     battingStats: [...awaySummary.battingRows, ...homeSummary.battingRows],
     pitchingStats: [...awaySummary.pitchingRows, ...homeSummary.pitchingRows],
@@ -532,11 +550,18 @@ function toBatterRow(
   };
 }
 
-function toPitcherRow(name: string, role: string): PitcherRecordRow {
+function toPitcherRow(
+  name: string,
+  role: string,
+  results?: { win?: boolean; loss?: boolean; save?: boolean },
+): PitcherRecordRow {
   return {
     id: `pitcher-${name}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     role,
+    win: results?.win ?? false,
+    loss: results?.loss ?? false,
+    save: results?.save ?? false,
   };
 }
 
@@ -610,4 +635,19 @@ function parseLineScoreValue(value: string) {
 
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatOfficialsSummary(officials: SavedGameRecord["officials"]) {
+  if (!officials) {
+    return "관리자 기록 입력 페이지에서 미입력";
+  }
+
+  const items = [
+    officials.homePlateUmpire ? `주심 ${officials.homePlateUmpire}` : "",
+    officials.baseUmpire ? `루심 ${officials.baseUmpire}` : "",
+    officials.scorekeeper1 ? `기록원1 ${officials.scorekeeper1}` : "",
+    officials.scorekeeper2 ? `기록원2 ${officials.scorekeeper2}` : "",
+  ].filter(Boolean);
+
+  return items.length > 0 ? items.join(" / ") : "관리자 기록 입력 페이지에서 미입력";
 }

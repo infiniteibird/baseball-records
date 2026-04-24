@@ -274,13 +274,16 @@ function fallbackAllToStarter(
 }
 
 function createLineupOrder(batters: BatterRecordRow[]) {
-  return [...batters].sort((left, right) => {
-    if (left.battingOrder !== right.battingOrder) {
-      return left.battingOrder - right.battingOrder;
-    }
+  return batters
+    .map((batter, index) => ({ batter, index }))
+    .sort((left, right) => {
+      if (left.batter.battingOrder !== right.batter.battingOrder) {
+        return left.batter.battingOrder - right.batter.battingOrder;
+      }
 
-    return left.playerName.localeCompare(right.playerName, "ko");
-  });
+      return left.index - right.index;
+    })
+    .map(({ batter }) => batter);
 }
 
 export function buildPitchingRowsFromAssignments(
@@ -352,9 +355,9 @@ export function buildPitchingRowsFromAssignments(
       totals.walks + totals.hitByPitch,
     ),
     gameType: pitcher.role,
-    win: "",
-    loss: "",
-    save: "",
+    win: manual?.win ? "승" : "",
+    loss: manual?.loss ? "패" : "",
+    save: manual?.save ? "세" : "",
   } satisfies PitchingStatRow;
   });
 }

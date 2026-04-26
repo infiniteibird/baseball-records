@@ -134,7 +134,7 @@ export function AdminGameForm() {
     });
   }
 
-  function handleSaveGames() {
+  async function handleSaveGames() {
     if (hasTeamDraftChanges) {
       setMessage({
         type: "error",
@@ -152,12 +152,22 @@ export function AdminGameForm() {
       return;
     }
 
-    saveGames(editableGames);
-    setGameDrafts(null);
-    setMessage({
-      type: "success",
-      text: "경기 변경사항을 저장하고 사이트 전체에 반영했습니다.",
-    });
+    try {
+      await saveGames(editableGames);
+      setGameDrafts(null);
+      setMessage({
+        type: "success",
+        text: "경기 변경사항을 저장하고 사이트 전체에 반영했습니다.",
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `경기 저장에 실패했습니다. ${error.message}`
+            : "경기 저장에 실패했습니다.",
+      });
+    }
   }
 
   function getStatusFilterButtonClass(status: "전체" | "예정" | "종료" | "진행중") {
@@ -266,13 +276,13 @@ export function AdminGameForm() {
     if (file.size > MAX_TEAM_LOGO_BYTES) {
       setMessage({
         type: "error",
-        text: "팀 로고는 1.5MB 이하 이미지로 업로드해 주세요.",
+        text: "팀 로고 원본 파일은 5MB 이하 이미지로 업로드해 주세요.",
       });
       return;
     }
 
     try {
-      const logoData = await readFileAsDataUrl(file);
+      const logoData = await normalizeTeamLogoFile(file);
       updateTeamDrafts((current) =>
         current.map((team) =>
           team.id === selectedTeam.id
@@ -285,12 +295,15 @@ export function AdminGameForm() {
       );
       setMessage({
         type: "success",
-        text: `${selectedTeam.name} 팀 로고 초안을 반영했습니다. 저장해야 전체 사이트에 반영됩니다.`,
+        text: `${selectedTeam.name} 팀 로고 초안을 반영했습니다. 저장용 크기로 최적화한 뒤 저장해야 전체 사이트에 반영됩니다.`,
       });
-    } catch {
+    } catch (error) {
       setMessage({
         type: "error",
-        text: "팀 로고 파일을 읽지 못했습니다. 다시 시도해 주세요.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "팀 로고 파일을 읽지 못했습니다. 다시 시도해 주세요.",
       });
     }
   }
@@ -316,7 +329,7 @@ export function AdminGameForm() {
     });
   }
 
-  function handleSaveTeams() {
+  async function handleSaveTeams() {
     const validationError = validateTeams(editableTeams);
 
     if (validationError) {
@@ -327,26 +340,46 @@ export function AdminGameForm() {
       return;
     }
 
-    saveTeams(editableTeams);
-    setTeamDrafts(null);
-    setMessage({
-      type: "success",
-      text: "팀 이름과 선수 명단 변경사항을 저장하고 사이트 전체에 반영했습니다.",
-    });
+    try {
+      await saveTeams(editableTeams);
+      setTeamDrafts(null);
+      setMessage({
+        type: "success",
+        text: "팀 이름과 선수 명단 변경사항을 저장하고 사이트 전체에 반영했습니다.",
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `팀/선수 저장에 실패했습니다. ${error.message}`
+            : "팀/선수 저장에 실패했습니다.",
+      });
+    }
   }
 
-  function handleReset() {
-    resetState();
-    setSelectedGameId("");
-    setSelectedTeamId("");
-    setTeamDrafts(null);
-    setGameDrafts(null);
-    setNewPlayerName("");
-    setPlayerListPage(1);
-    setMessage({
-      type: "success",
-      text: "관리자 상태를 초기 mock 상태로 되돌렸습니다.",
-    });
+  async function handleReset() {
+    try {
+      await resetState();
+      setSelectedGameId("");
+      setSelectedTeamId("");
+      setTeamDrafts(null);
+      setGameDrafts(null);
+      setNewPlayerName("");
+      setPlayerListPage(1);
+      setMessage({
+        type: "success",
+        text: "관리자 상태를 초기 mock 상태로 되돌렸습니다.",
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `초기화 저장에 실패했습니다. ${error.message}`
+            : "초기화 저장에 실패했습니다.",
+      });
+    }
   }
 
   return (
@@ -675,7 +708,9 @@ export function AdminGameForm() {
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={handleSaveGames}
+                      onClick={() => {
+                        void handleSaveGames();
+                      }}
                       className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(19,60,115,0.22)]"
                     >
                       경기 저장
@@ -692,7 +727,9 @@ export function AdminGameForm() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleReset}
+                      onClick={() => {
+                        void handleReset();
+                      }}
                       className="rounded-full border border-line bg-card px-5 py-3 text-sm font-medium text-foreground"
                     >
                       전체 초기화
@@ -976,7 +1013,9 @@ export function AdminGameForm() {
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={handleSaveTeams}
+                    onClick={() => {
+                      void handleSaveTeams();
+                    }}
                     className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(19,60,115,0.22)]"
                   >
                     팀/선수 저장
@@ -1182,7 +1221,10 @@ function displayTeamName(teamId: string, teamNameMap: Map<string, string>) {
   return teamNameMap.get(teamId) ?? teamId;
 }
 
-const MAX_TEAM_LOGO_BYTES = 1_500_000;
+const MAX_TEAM_LOGO_BYTES = 5_000_000;
+const MAX_TEAM_LOGO_DIMENSION = 256;
+const MAX_TEAM_LOGO_DATA_URL_LENGTH = 240_000;
+const TEAM_LOGO_OUTPUT_QUALITY = 0.82;
 
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -1198,6 +1240,50 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(reader.error ?? new Error("failed to read file"));
     reader.readAsDataURL(file);
   });
+}
+
+function loadImageElement(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("failed to load image"));
+    image.src = source;
+  });
+}
+
+async function normalizeTeamLogoFile(file: File) {
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageElement(dataUrl);
+  const longestSide = Math.max(image.width, image.height, 1);
+  const scale = Math.min(1, MAX_TEAM_LOGO_DIMENSION / longestSide);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("canvas context unavailable");
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  let normalized = canvas.toDataURL("image/webp", TEAM_LOGO_OUTPUT_QUALITY);
+  if (!normalized.startsWith("data:image/")) {
+    normalized = canvas.toDataURL("image/png");
+  }
+
+  if (normalized.length > MAX_TEAM_LOGO_DATA_URL_LENGTH) {
+    normalized = canvas.toDataURL("image/jpeg", 0.72);
+  }
+
+  if (normalized.length > MAX_TEAM_LOGO_DATA_URL_LENGTH) {
+    throw new Error("팀 로고를 저장 가능한 크기로 줄이지 못했습니다.");
+  }
+
+  return normalized;
 }
 
 function TeamLogo({

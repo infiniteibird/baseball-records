@@ -29,7 +29,7 @@ export function GamesPageClient({
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
       <SectionCard
         title="최근 경기"
-        subtitle="종료된 경기 결과를 확인합니다. mock 경기만 상세 페이지가 연결됩니다."
+        subtitle="종료된 경기 결과를 확인합니다. 저장된 경기 상세 기록이 있으면 상세 페이지에서 바로 확인할 수 있습니다."
       >
         <div className="space-y-3">
           {recentGames.map((game) => (

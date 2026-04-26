@@ -61,7 +61,7 @@ type UpsertTeamRow = {
   id: string;
   name: string;
   players: string[];
-  logo_data?: string;
+  logo_data: string | null;
 };
 
 type UpsertGameRow = {
@@ -100,6 +100,8 @@ type NormalizedPayload = {
   playerStatIds: string[];
   records: Record<string, SavedGameRecord>;
 };
+
+type PersistScope = "full" | "teams";
 
 type SupabaseRequestOptions = RequestInit & {
   searchParams?: URLSearchParams;
@@ -200,6 +202,8 @@ function logPostRequestContext(
   host: string,
   normalized: NormalizedPayload,
   payload: unknown,
+  requestContentLength: string | null,
+  scope: PersistScope,
 ) {
   const { url, key, urlSource, keySource, keyKind, fallback } = getEnvConfig();
 
@@ -224,6 +228,7 @@ function logPostRequestContext(
   });
 
   console.log("[baseball-data][POST] payload 요약", {
+    scope,
     teams: normalized.teams.length,
     games: normalized.games.length,
     uploadedPlayers: normalized.uploadedPlayers.length,
@@ -231,7 +236,97 @@ function logPostRequestContext(
     teamIds: normalized.teamIds.length,
     gameIds: normalized.gameIds.length,
     playerStatIds: normalized.playerStatIds.length,
-    payloadSample: String(payload).slice(0, 800),
+    requestContentLength,
+    payloadBytes:
+      typeof payload === "object" && payload !== null
+        ? JSON.stringify(payload).length
+        : 0,
+    teamsWithLogoCount: normalized.teams.filter((team) => Boolean(team.logo_data)).length,
+    totalLogoDataLength: normalized.teams.reduce(
+      (sum, team) => sum + (team.logo_data?.length ?? 0),
+      0,
+    ),
+    hasPayloadEnvelope:
+      typeof payload === "object" && payload !== null && "payload" in payload,
+  });
+}
+
+function summarizeGameRecord(record: SavedGameRecord | null) {
+  if (!record) {
+    return null;
+  }
+
+  return {
+    gameId: record.gameId,
+    saveStatus: record.saveStatus,
+    updatedAt: record.updatedAt,
+    awayBatters: record.away.batters.length,
+    homeBatters: record.home.batters.length,
+    awayPitchers: record.away.pitchers.length,
+    homePitchers: record.home.pitchers.length,
+  };
+}
+
+function summarizeTeamsPayload(rows: ReturnType<typeof makeSupabasePayload>["teams"]) {
+  return rows.slice(0, 3).map((team) => ({
+    id: team.id,
+    name: team.name,
+    playersCount: team.players.length,
+    hasLogoData: typeof team.logo_data === "string" && team.logo_data.length > 0,
+    logoDataLength: typeof team.logo_data === "string" ? team.logo_data.length : 0,
+    logoDataPrefix: typeof team.logo_data === "string" ? team.logo_data.slice(0, 32) : "",
+    keys: Object.keys(team).sort(),
+  }));
+}
+
+function summarizeGamesPayload(rows: ReturnType<typeof makeSupabasePayload>["games"]) {
+  return rows.slice(0, 3).map((game) => ({
+    id: game.id,
+    date: game.date,
+    time: game.time,
+    status: game.status,
+    awayTeamId: game.away_team_id,
+    homeTeamId: game.home_team_id,
+    awayScore: game.away_score,
+    homeScore: game.home_score,
+    detailAvailable: game.detail_available,
+    source: game.source,
+    note: game.note,
+    record: summarizeGameRecord(game.record),
+  }));
+}
+
+function summarizePlayerStatsPayload(
+  rows: ReturnType<typeof makeSupabasePayload>["playerStats"],
+) {
+  return rows.slice(0, 5).map((player) => ({
+    id: player.id,
+    teamId: player.team_id,
+    playerName: player.player_name,
+    school: player.school,
+    source: player.source,
+    statType: player.stat_type,
+  }));
+}
+
+function logSupabasePayloadSamples(payload: ReturnType<typeof makeSupabasePayload>) {
+  console.log("[baseball-data][POST] teams payload sample", {
+    count: payload.teams.length,
+    sample: summarizeTeamsPayload(payload.teams),
+    logoTeamIds: payload.teams
+      .filter((team) => typeof team.logo_data === "string" && team.logo_data.length > 0)
+      .map((team) => ({
+        id: team.id,
+        logoDataLength: typeof team.logo_data === "string" ? team.logo_data.length : 0,
+      })),
+  });
+  console.log("[baseball-data][POST] games payload sample", {
+    count: payload.games.length,
+    sample: summarizeGamesPayload(payload.games),
+  });
+  console.log("[baseball-data][POST] player_stats payload sample", {
+    count: payload.playerStats.length,
+    sample: summarizePlayerStatsPayload(payload.playerStats),
   });
 }
 
@@ -355,6 +450,16 @@ function normalizeLogoData(value: unknown) {
   }
 
   return trimmed;
+}
+
+function validateLogoDataLength(value: string | null) {
+  if (typeof value !== "string" || value.length === 0) {
+    return;
+  }
+
+  if (value.length > 240_000) {
+    throw new Error("팀 로고 데이터가 너무 큽니다. 더 작은 이미지로 다시 업로드해 주세요.");
+  }
 }
 
 function buildPayloadFromDb(
@@ -577,11 +682,12 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
       }
 
       teamIds.add(id);
+      const normalizedLogoData = normalizeLogoData(candidateTeam.logoData) ?? null;
       return {
         id,
         name,
         players: parseTeamPlayers(candidateTeam.players),
-        logo_data: normalizeLogoData(candidateTeam.logoData),
+        logo_data: normalizedLogoData,
       };
     })
     .filter((team): team is UpsertTeamRow => team !== null);
@@ -813,12 +919,17 @@ function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPaylo
     season: game.season,
   }));
 
-  const teams = normalized.teams.map((team) => ({
-    id: team.id,
-    name: team.name,
-    players: [...new Set(team.players)],
-    logo_data: normalizeLogoData(team.logo_data),
-  }));
+  const teams = normalized.teams.map((team) => {
+    const normalizedLogoData = normalizeLogoData(team.logo_data) ?? null;
+    validateLogoDataLength(normalizedLogoData);
+
+    return {
+      id: team.id,
+      name: team.name,
+      players: [...new Set(team.players)],
+      logo_data: normalizedLogoData,
+    };
+  });
 
   const playerStats = normalized.uploadedPlayers.map((player) => ({
     id: player.id,
@@ -833,24 +944,41 @@ function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPaylo
   return { teams, games, playerStats };
 }
 
-async function upsertAndPruneRows(table: string, rows: Record<string, unknown>[]) {
+async function upsertAndPruneRows(
+  table: string,
+  rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
   if (rows.length === 0) {
     console.info(`[baseball-data] ${table} upsert 스킵 (데이터 없음)`);
-    return;
+    return [];
   }
 
   const payload = JSON.stringify(rows);
   try {
-    await supabaseFetch(`${table}?on_conflict=id`, {
-      method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates",
+    console.log(`[baseball-data] ${table} upsert 시작`, {
+      count: rows.length,
+      sample: rows.slice(0, 2),
+      payloadBytes: payload.length,
+      perRowBytes: rows.slice(0, 5).map((row) => JSON.stringify(row).length),
+    });
+    const result = await supabaseFetch<Record<string, unknown>[]>(
+      `${table}?on_conflict=id`,
+      {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates",
+        },
+        body: payload,
       },
-      body: payload,
+    );
+    console.log(`[baseball-data] ${table} upsert 응답 sample`, {
+      count: Array.isArray(result) ? result.length : 0,
+      sample: Array.isArray(result) ? result.slice(0, 2) : [],
     });
     console.log(`[baseball-data] ${table} upsert 성공`, {
       count: rows.length,
     });
+    return Array.isArray(result) ? result : [];
   } catch (error) {
     logSupabaseQueryError(
       table as SyncTableName,
@@ -863,6 +991,77 @@ async function upsertAndPruneRows(table: string, rows: Record<string, unknown>[]
     );
     throw error;
   }
+}
+
+function verifyTeamLogoPersistence(
+  requestRows: ReturnType<typeof makeSupabasePayload>["teams"],
+  persistedRows: Array<{ id: string; name: string; logo_data: string | null }>,
+) {
+  const teamsWithLogo = requestRows.filter((team) => Boolean(team.logo_data));
+  if (teamsWithLogo.length === 0) {
+    console.log("[baseball-data] teams logo_data 검증 스킵 (로고 없음)");
+    return;
+  }
+
+  console.log("[baseball-data] teams logo_data 조회 검증", {
+    requested: requestRows
+      .filter((team) => Boolean(team.logo_data))
+      .map((team) => ({
+        id: team.id,
+        requestLogoLength: team.logo_data?.length ?? 0,
+      })),
+    persisted: persistedRows.map((team) => ({
+      id: team.id,
+      name: team.name,
+      persistedLogoLength: typeof team.logo_data === "string" ? team.logo_data.length : 0,
+      hasLogoData: typeof team.logo_data === "string" && team.logo_data.length > 0,
+      logoDataPrefix: typeof team.logo_data === "string" ? team.logo_data.slice(0, 32) : "",
+    })),
+  });
+
+  const missingTeam = requestRows
+    .filter((team) => Boolean(team.logo_data))
+    .find((team) => {
+      const persisted = persistedRows.find((row) => row.id === team.id);
+      return !(persisted && typeof persisted.logo_data === "string" && persisted.logo_data.length > 0);
+    });
+
+  if (missingTeam) {
+    throw new Error(
+      `${missingTeam.name} 팀 로고가 teams.logo_data에 저장되지 않았습니다.`,
+    );
+  }
+}
+
+async function fetchTeamsForLogoVerification(teamIds: string[]) {
+  if (teamIds.length === 0) {
+    return [];
+  }
+
+  const query = new URLSearchParams({
+    select: "id,name,logo_data",
+    id: `in.${toPostgrestInValues(teamIds)}`,
+  });
+
+  const rows = await supabaseFetch<
+    Array<{ id: string; name: string; logo_data: string | null }>
+  >("teams", {
+    method: "GET",
+    searchParams: query,
+  });
+
+  console.log("[baseball-data] teams logo_data 재조회 sample", {
+    count: rows.length,
+    sample: rows.slice(0, 5).map((team) => ({
+      id: team.id,
+      name: team.name,
+      hasLogoData: typeof team.logo_data === "string" && team.logo_data.length > 0,
+      logoDataLength: typeof team.logo_data === "string" ? team.logo_data.length : 0,
+      logoDataPrefix: typeof team.logo_data === "string" ? team.logo_data.slice(0, 32) : "",
+    })),
+  });
+
+  return rows;
 }
 
 async function deleteMissingRows(
@@ -911,6 +1110,11 @@ async function deleteMissingRows(
   });
 
   try {
+    console.log(`[baseball-data] ${table} prune 시작`, {
+      key,
+      keepIdsCount: keepIds.length,
+      keepIdsSample: keepIds.slice(0, 5),
+    });
     await supabaseFetch(`${table}`, {
       method: "DELETE",
       searchParams: query,
@@ -939,7 +1143,7 @@ export async function GET(request: NextRequest) {
 
   if (!hasSupabaseEnv()) {
     console.warn("[baseball-data][GET] Supabase 환경 변수 미설정 (시드 응답)");
-    const seed = buildSeedPayload();
+    const seed = buildSeedPayload("remote-fallback");
     return NextResponse.json<BaseballApiResponse>(
       { ok: true, payload: seed },
       { status: 200 },
@@ -950,7 +1154,7 @@ export async function GET(request: NextRequest) {
     const { teams, games, players } = await readFromDatabase();
 
     if (teams.length === 0 && games.length === 0 && players.length === 0) {
-      const seed = buildSeedPayload();
+      const seed = buildSeedPayload("remote-fallback");
       return NextResponse.json<BaseballApiResponse>(
         { ok: true, payload: seed },
         { status: 200 },
@@ -960,17 +1164,16 @@ export async function GET(request: NextRequest) {
     const payload = buildPayloadFromDb(teams, games, players);
     return NextResponse.json<BaseballApiResponse>({ ok: true, payload });
   } catch (error) {
-    const seed = buildSeedPayload();
+    console.error("[baseball-data][GET] DB 조회 실패", error);
     return NextResponse.json<BaseballApiResponse>(
       {
-        ok: true,
-        payload: seed,
+        ok: false,
         error:
           error instanceof Error
-            ? `DB 조회 실패, 시드 데이터로 응답합니다. (${error.message})`
-            : "DB 조회 실패, 시드 데이터로 응답합니다.",
+            ? `DB 조회 실패 (${error.message})`
+            : "DB 조회 실패",
       },
-      { status: 200 },
+      { status: 500 },
     );
   }
 }
@@ -991,15 +1194,16 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json<BaseballApiResponse>(
       {
-        ok: true,
+        ok: false,
         error: "Supabase 환경 변수 미설정으로 서버 저장은 비활성화되었습니다.",
       },
-      { status: 200 },
+      { status: 503 },
     );
   }
 
   try {
     const body = await request.json().catch(() => null);
+    const scope: PersistScope = body?.scope === "teams" ? "teams" : "full";
     const normalized = normalizeRequestPayload(body?.payload);
 
     if (!normalized) {
@@ -1009,26 +1213,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logPostRequestContext(runtimeEnv, host, normalized, body);
+    logPostRequestContext(
+      runtimeEnv,
+      host,
+      normalized,
+      body,
+      request.headers.get("content-length"),
+      scope,
+    );
     const sanitized = makeSupabasePayload(normalized);
+    logSupabasePayloadSamples(sanitized);
 
     try {
-      await upsertAndPruneRows("teams", sanitized.teams);
+      const persistedTeamsFromUpsert = await upsertAndPruneRows("teams", sanitized.teams);
+      if (persistedTeamsFromUpsert.length === 0) {
+        console.log("[baseball-data] teams upsert 응답 본문 비어 있음 - DB 재조회로 logo_data 검증 진행");
+      }
+      const persistedTeams = await fetchTeamsForLogoVerification(
+        sanitized.teams
+          .filter((team) => typeof team.logo_data === "string" && team.logo_data.length > 0)
+          .map((team) => team.id),
+      );
+      verifyTeamLogoPersistence(sanitized.teams, persistedTeams);
     } catch (error) {
       console.error("[baseball-data] teams upsert/DB 요청 실패");
       throw new Error(
         `teams 업서트 실패: ${
-          error instanceof Error ? error.message : "알 수 없는 오류"
-        }`,
-      );
-    }
-
-    try {
-      await upsertAndPruneRows("games", sanitized.games);
-    } catch (error) {
-      console.error("[baseball-data] games upsert/DB 요청 실패");
-      throw new Error(
-        `games 업서트 실패: ${
           error instanceof Error ? error.message : "알 수 없는 오류"
         }`,
       );
@@ -1046,6 +1256,17 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      await deleteMissingRows("player_stats", "id", normalized.playerStatIds);
+    } catch (error) {
+      console.error("[baseball-data] player_stats prune/DB 요청 실패");
+      throw new Error(
+        `player_stats 삭제(Prune) 실패: ${
+          error instanceof Error ? error.message : "알 수 없는 오류"
+        }`,
+      );
+    }
+
+    try {
       await deleteMissingRows("teams", "id", normalized.teamIds);
     } catch (error) {
       console.error("[baseball-data] teams prune/DB 요청 실패");
@@ -1056,26 +1277,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      await deleteMissingRows("games", "id", normalized.gameIds);
-    } catch (error) {
-      console.error("[baseball-data] games prune/DB 요청 실패");
-      throw new Error(
-        `games 삭제(Prune) 실패: ${
-          error instanceof Error ? error.message : "알 수 없는 오류"
-        }`,
-      );
-    }
+    if (scope === "full") {
+      try {
+        await upsertAndPruneRows("games", sanitized.games);
+      } catch (error) {
+        console.error("[baseball-data] games upsert/DB 요청 실패");
+        throw new Error(
+          `games 업서트 실패: ${
+            error instanceof Error ? error.message : "알 수 없는 오류"
+          }`,
+        );
+      }
 
-    try {
-      await deleteMissingRows("player_stats", "id", normalized.playerStatIds);
-    } catch (error) {
-      console.error("[baseball-data] player_stats prune/DB 요청 실패");
-      throw new Error(
-        `player_stats 삭제(Prune) 실패: ${
-          error instanceof Error ? error.message : "알 수 없는 오류"
-        }`,
-      );
+      try {
+        await deleteMissingRows("games", "id", normalized.gameIds);
+      } catch (error) {
+        console.error("[baseball-data] games prune/DB 요청 실패");
+        throw new Error(
+          `games 삭제(Prune) 실패: ${
+            error instanceof Error ? error.message : "알 수 없는 오류"
+          }`,
+        );
+      }
+    } else {
+      console.log("[baseball-data][POST] teams scope 저장: games upsert/prune 생략");
     }
 
     summarizePostResult(runtimeEnv);

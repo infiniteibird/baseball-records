@@ -15,9 +15,8 @@ export default function AdminPage() {
               <br className="hidden sm:block" />입력하는 관리자 폼입니다.
             </h2>
             <p className="mt-3 text-sm leading-6 text-white/80 sm:text-base">
-              현재는 DB 저장 없이 프론트엔드 입력 폼만 구현했습니다. 이후 API를
-              연결하면 입력 상태를 그대로 서버로 보낼 수 있게 state 구조를 정리해
-              두었습니다.
+              팀, 경기, 선수 명단, 경기 기록을 공용 저장소와 연결해 입력하고
+              저장하는 관리자 화면입니다.
             </p>
           </div>
 
@@ -28,7 +27,7 @@ export default function AdminPage() {
             </div>
             <div className="rounded-2xl bg-white/12 p-4">
               <p className="text-xs text-white/70">저장 방식</p>
-              <strong className="mt-2 block text-2xl">Mock</strong>
+              <strong className="mt-2 block text-2xl">Shared DB</strong>
             </div>
             <div className="rounded-2xl bg-white/12 p-4">
               <p className="text-xs text-white/70">API 준비</p>

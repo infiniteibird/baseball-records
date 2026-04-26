@@ -486,18 +486,28 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
     );
   }
 
-  function handleSave(saveStatus: "draft" | "saved") {
-    saveGameRecord(gameId, editableRecord, saveStatus);
-    setDraftRecord(null);
-    setPitcherAssignmentMode(null);
-    setActiveCell(null);
-    setMessage({
-      type: "success",
-      text:
-        saveStatus === "saved"
-          ? "경기 기록을 저장하고 사이트 전체에 반영했습니다."
-          : "경기 기록을 임시저장하고 상세 화면에 반영했습니다.",
-    });
+  async function handleSave(saveStatus: "draft" | "saved") {
+    try {
+      await saveGameRecord(gameId, editableRecord, saveStatus);
+      setDraftRecord(null);
+      setPitcherAssignmentMode(null);
+      setActiveCell(null);
+      setMessage({
+        type: "success",
+        text:
+          saveStatus === "saved"
+            ? "경기 기록을 저장하고 사이트 전체에 반영했습니다."
+            : "경기 기록을 임시저장하고 상세 화면에 반영했습니다.",
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `경기 기록 저장에 실패했습니다. ${error.message}`
+            : "경기 기록 저장에 실패했습니다.",
+      });
+    }
   }
 
   return (
@@ -848,14 +858,18 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => handleSave("draft")}
+          onClick={() => {
+            void handleSave("draft");
+          }}
           className="rounded-full border border-line bg-card px-5 py-3 text-sm font-semibold text-foreground"
         >
           임시저장
         </button>
         <button
           type="button"
-          onClick={() => handleSave("saved")}
+          onClick={() => {
+            void handleSave("saved");
+          }}
           className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(19,60,115,0.22)]"
         >
           저장

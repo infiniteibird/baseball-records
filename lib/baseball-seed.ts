@@ -1,6 +1,9 @@
 import { gameListItems } from "@/data/mock-games";
 import { mockTeams } from "@/data/mock-teams";
-import type { BaseballPersistPayload } from "@/types/baseball-persistence";
+import type {
+  BaseballPersistPayload,
+  BaseballPersistSource,
+} from "@/types/baseball-persistence";
 import type { StoredGame } from "@/data/types";
 
 function extractTeamIdByName(teamName: string) {
@@ -8,7 +11,9 @@ function extractTeamIdByName(teamName: string) {
   return team?.id ?? teamName;
 }
 
-export function buildSeedPayload(): BaseballPersistPayload {
+export function buildSeedPayload(
+  source: BaseballPersistSource = "mock",
+): BaseballPersistPayload {
   const teams = mockTeams.map((team) => ({
     ...team,
     players: [...team.players],
@@ -35,6 +40,6 @@ export function buildSeedPayload(): BaseballPersistPayload {
     games,
     uploadedPlayers: [],
     records: {},
-    source: "mock",
+    source,
   };
 }

@@ -79,20 +79,48 @@ export function AdminPlayerUploadSection() {
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (previewPlayers.length === 0 || !selectedTeam) {
       return;
     }
 
-    importUploadedPlayers(previewPlayers);
-    setMessage({
-      type: "success",
-      text: `${selectedTeam.name} 선수 ${previewPlayers.length}명을 저장해 사이트 전체에 반영했습니다.`,
-    });
-    setPreviewPlayers([]);
-    setSelectedFileName("");
-    setUploadSummary(null);
-    setSelectedTeamId("");
+    try {
+      await importUploadedPlayers(previewPlayers);
+      setMessage({
+        type: "success",
+        text: `${selectedTeam.name} 선수 ${previewPlayers.length}명을 저장해 사이트 전체에 반영했습니다.`,
+      });
+      setPreviewPlayers([]);
+      setSelectedFileName("");
+      setUploadSummary(null);
+      setSelectedTeamId("");
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `선수 명단 저장에 실패했습니다. ${error.message}`
+            : "선수 명단 저장에 실패했습니다.",
+      });
+    }
+  }
+
+  async function handleRemovePlayer(player: UploadedPlayer) {
+    try {
+      await removeRosterPlayers([player]);
+      setMessage({
+        type: "success",
+        text: `${player.teamName} 소속 ${player.name} 선수를 명단에서 제거했습니다.`,
+      });
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? `선수 삭제에 실패했습니다. ${error.message}`
+            : "선수 삭제에 실패했습니다.",
+      });
+    }
   }
 
   function resetPreview() {
@@ -231,7 +259,9 @@ export function AdminPlayerUploadSection() {
               </button>
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => {
+                  void handleSave();
+                }}
                 className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(19,60,115,0.18)]"
               >
                 저장
@@ -266,9 +296,9 @@ export function AdminPlayerUploadSection() {
           players={rosterPlayers}
           title="현재 선수 명단"
           subtitle="이름과 출신고만 표시합니다. 저장이 끝난 선수만 여기에 반영됩니다."
-          onDeletePlayer={(player) =>
-            removeRosterPlayers([player])
-          }
+          onDeletePlayer={(player) => {
+            void handleRemovePlayer(player);
+          }}
           pagination={{
             enabled: true,
             itemsPerPage: 15,

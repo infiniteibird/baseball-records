@@ -19,8 +19,9 @@ export default function GameDetailPage({
   const fallbackGame = findGameFromLists(id, [...recentGames, ...upcomingGames]);
   const game =
     recordGame ??
-    getGameDetailById(id) ??
-    (fallbackGame ? createEmptyDetailFromDisplayGame(fallbackGame) : null);
+    (fallbackGame
+      ? createEmptyDetailFromDisplayGame(fallbackGame)
+      : getGameDetailById(id) ?? null);
 
   if (!isHydrated && !game) {
     return (

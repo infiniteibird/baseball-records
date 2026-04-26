@@ -6,6 +6,7 @@ import type {
 } from "@/types/record";
 import type { PitchingStatRow } from "@/data/types";
 import { recordCodeMap } from "@/lib/record-codes";
+import { splitPlateAppearances } from "@/lib/record-plate-appearances";
 
 const EMPTY_PITCHER_ID = "__pitcher_fallback__";
 
@@ -13,6 +14,7 @@ type PitcherSequenceSlot = {
   batterId: string;
   batterName: string;
   inningIndex: number;
+  plateAppearanceIndex: number;
   entries: Array<RecordCellEntry>;
   sequenceIndex: number;
 };
@@ -53,25 +55,38 @@ export function createPitchingSequence(batters: BatterRecordRow[]): PitcherSeque
       break;
     }
 
+    const inningAppearances = lineup.map((batter) =>
+      splitPlateAppearances(batter.inningResults[inningIndex] ?? []),
+    );
+    const consumedCounts = Array.from({ length: lineup.length }, () => 0);
+    let remainingAppearances = inningAppearances.reduce(
+      (count, appearances) => count + appearances.length,
+      0,
+    );
+    let currentBatterIndex = nextStarterIndex;
     let lastBatterIndex: number | null = null;
 
-    for (let offset = 0; offset < lineup.length; offset += 1) {
-      const batterIndex = (nextStarterIndex + offset) % lineup.length;
-      const batter = lineup[batterIndex];
-      const entries = batter.inningResults[inningIndex] ?? [];
+    while (remainingAppearances > 0) {
+      const batter = lineup[currentBatterIndex];
+      const appearances = inningAppearances[currentBatterIndex] ?? [];
+      const plateAppearanceIndex = consumedCounts[currentBatterIndex];
+      const entries = appearances[plateAppearanceIndex];
 
-      if (entries.length === 0) {
-        continue;
+      if (entries && entries.length > 0) {
+        slots.push({
+          batterId: batter.id,
+          batterName: batter.playerName,
+          inningIndex,
+          plateAppearanceIndex,
+          entries,
+          sequenceIndex: sequenceIndex++,
+        });
+        consumedCounts[currentBatterIndex] += 1;
+        remainingAppearances -= 1;
+        lastBatterIndex = currentBatterIndex;
       }
 
-      slots.push({
-        batterId: batter.id,
-        batterName: batter.playerName,
-        inningIndex,
-        entries,
-        sequenceIndex: sequenceIndex++,
-      });
-      lastBatterIndex = batterIndex;
+      currentBatterIndex = (currentBatterIndex + 1) % lineup.length;
     }
 
     if (lastBatterIndex !== null) {
@@ -86,10 +101,15 @@ export function findPitchingSequenceIndex(
   sequence: PitcherSequenceSlot[],
   batterId: string,
   inningIndex: number,
+  plateAppearanceIndex?: number,
 ): number | null {
-  const match = sequence.find(
-    (slot) => slot.batterId === batterId && slot.inningIndex === inningIndex,
+  const candidates = sequence.filter(
+    (slot) =>
+      slot.batterId === batterId &&
+      slot.inningIndex === inningIndex &&
+      (plateAppearanceIndex == null || slot.plateAppearanceIndex === plateAppearanceIndex),
   );
+  const match = candidates[candidates.length - 1];
   return match ? match.sequenceIndex : null;
 }
 

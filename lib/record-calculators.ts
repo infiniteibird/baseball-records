@@ -9,6 +9,11 @@ import type {
   TeamConfig,
 } from "@/data/types";
 import { recordCodeMap } from "@/lib/record-codes";
+import {
+  formatPlateAppearanceEntries,
+  parsePlateAppearanceString,
+  splitPlateAppearances,
+} from "@/lib/record-plate-appearances";
 import type {
   BatterRecordRow,
   ManualLineScore,
@@ -34,6 +39,7 @@ type BattingTotals = {
   doubles: number;
   triples: number;
   errorsReached: number;
+  fieldersChoiceReached: number;
   doublePlays: number;
   outs: number;
 };
@@ -302,11 +308,12 @@ function summarizeTeamRecord(
       bb: totals.bb,
       so: totals.so,
       sb: totals.sb,
+      fieldersChoiceReached: totals.fieldersChoiceReached,
       avg: totals.ab === 0 ? ".000" : `.${Math.round((totals.hits / totals.ab) * 1000)
         .toString()
         .padStart(3, "0")}`,
       plateAppearancesByInning: row.inningResults.map(formatCellEntries),
-    } satisfies BattingStatRow;
+    };
   });
 
   const teamTotals = battingRows.reduce(
@@ -316,7 +323,7 @@ function summarizeTeamRecord(
       accumulator.steals += row.sb;
       accumulator.strikeouts += row.so;
       accumulator.walks += row.bb;
-      accumulator.reachBase += row.hits + row.bb;
+      accumulator.reachBase += row.hits + row.bb + row.fieldersChoiceReached;
       accumulator.runs += row.runs;
       return accumulator;
     },
@@ -373,93 +380,96 @@ function summarizeTeamPitchingRows(
 function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
   return row.inningResults.reduce<BattingTotals>(
     (accumulator, cellEntries, inningIndex) => {
-      cellEntries.forEach((entry, entryIndex) => {
-        const definition = recordCodeMap.get(entry.code);
-        if (!definition) {
-          return;
-        }
+      splitPlateAppearances(cellEntries).forEach((plateAppearance) => {
+        plateAppearance.forEach((entry, entryIndex) => {
+          const definition = recordCodeMap.get(entry.code);
+          if (!definition) {
+            return;
+          }
 
-        const isMainResult = entryIndex === 0;
-        switch (definition.category) {
-          case "single":
-            accumulator.hits += 1;
-            accumulator.ab += 1;
-            break;
-          case "double":
-            accumulator.hits += 1;
-            accumulator.ab += 1;
-            accumulator.doubles += 1;
-            break;
-          case "triple":
-            accumulator.hits += 1;
-            accumulator.ab += 1;
-            accumulator.triples += 1;
-            break;
-          case "home_run":
-            accumulator.hits += 1;
-            accumulator.ab += 1;
-            accumulator.hr += 1;
-            accumulator.rbi += 1;
-            accumulator.runs += 1;
-            inningRuns[inningIndex] += 1;
-            break;
-          case "walk":
-          case "intentional_walk":
-            accumulator.bb += 1;
-            break;
-          case "hit_by_pitch":
-            accumulator.hbp += 1;
-            break;
-          case "strikeout":
-            accumulator.so += 1;
-            accumulator.ab += 1;
-            accumulator.outs += 1;
-            break;
-          case "strikeout_reached":
-            accumulator.so += 1;
-            accumulator.ab += 1;
-            break;
-          case "groundout":
-          case "out":
-            if (isMainResult) {
+          const isMainResult = entryIndex === 0;
+          switch (definition.category) {
+            case "single":
+              accumulator.hits += 1;
               accumulator.ab += 1;
-            }
-            accumulator.outs += 1;
-            break;
-          case "double_play":
-            accumulator.ab += 1;
-            accumulator.outs += 2;
-            accumulator.doublePlays += 1;
-            break;
-          case "sac_bunt":
-          case "sac_fly":
-            accumulator.outs += 1;
-            break;
-          case "error":
-            accumulator.ab += 1;
-            accumulator.errorsReached += 1;
-            break;
-          case "fielders_choice":
-            accumulator.ab += 1;
-            break;
-          case "steal":
-            accumulator.sb += 1;
-            break;
-          case "caught_stealing":
-          case "pickoff":
-          case "baserunning_out":
-            accumulator.outs += 1;
-            break;
-          case "run_scored":
-            accumulator.runs += 1;
-            inningRuns[inningIndex] += 1;
-            break;
-          case "rbi":
-            accumulator.rbi += 1;
-            break;
-          default:
-            break;
-        }
+              break;
+            case "double":
+              accumulator.hits += 1;
+              accumulator.ab += 1;
+              accumulator.doubles += 1;
+              break;
+            case "triple":
+              accumulator.hits += 1;
+              accumulator.ab += 1;
+              accumulator.triples += 1;
+              break;
+            case "home_run":
+              accumulator.hits += 1;
+              accumulator.ab += 1;
+              accumulator.hr += 1;
+              accumulator.rbi += 1;
+              accumulator.runs += 1;
+              inningRuns[inningIndex] += 1;
+              break;
+            case "walk":
+            case "intentional_walk":
+              accumulator.bb += 1;
+              break;
+            case "hit_by_pitch":
+              accumulator.hbp += 1;
+              break;
+            case "strikeout":
+              accumulator.so += 1;
+              accumulator.ab += 1;
+              accumulator.outs += 1;
+              break;
+            case "strikeout_reached":
+              accumulator.so += 1;
+              accumulator.ab += 1;
+              break;
+            case "groundout":
+            case "out":
+              if (isMainResult) {
+                accumulator.ab += 1;
+              }
+              accumulator.outs += 1;
+              break;
+            case "double_play":
+              accumulator.ab += 1;
+              accumulator.outs += 2;
+              accumulator.doublePlays += 1;
+              break;
+            case "sac_bunt":
+            case "sac_fly":
+              accumulator.outs += 1;
+              break;
+            case "error":
+              accumulator.ab += 1;
+              accumulator.errorsReached += 1;
+              break;
+            case "fielders_choice":
+              accumulator.ab += 1;
+              accumulator.fieldersChoiceReached += 1;
+              break;
+            case "steal":
+              accumulator.sb += 1;
+              break;
+            case "caught_stealing":
+            case "pickoff":
+            case "baserunning_out":
+              accumulator.outs += 1;
+              break;
+            case "run_scored":
+              accumulator.runs += 1;
+              inningRuns[inningIndex] += 1;
+              break;
+            case "rbi":
+              accumulator.rbi += 1;
+              break;
+            default:
+              break;
+          }
+        });
       });
 
       return accumulator;
@@ -477,6 +487,7 @@ function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
       doubles: 0,
       triples: 0,
       errorsReached: 0,
+      fieldersChoiceReached: 0,
       doublePlays: 0,
       outs: 0,
     },
@@ -545,7 +556,7 @@ function toBatterRow(
     position,
     inningResults: Array.from({ length: 9 }, (_, index) => {
       const value = inningValues?.[index] ?? "";
-      return value ? [{ id: `cell-${index}-${value}`, code: value }] : [];
+      return value ? parsePlateAppearanceString(value, createTemporaryId) : [];
     }),
   };
 }
@@ -588,7 +599,11 @@ function findTeamName(teams: TeamConfig[], teamId: string) {
 }
 
 function formatCellEntries(entries: RecordCellEntry[]) {
-  return entries.map((entry) => entry.code).join(" + ");
+  return formatPlateAppearanceEntries(entries);
+}
+
+function createTemporaryId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function formatSummaryList(awayItems: string[], homeItems: string[]) {

@@ -6,6 +6,7 @@ export type TeamConfig = {
   id: string;
   name: string;
   players: string[];
+  logoData?: string;
 };
 
 export type UploadedPlayer = {
@@ -234,7 +235,9 @@ export type DisplayGame = {
   time: string;
   stadium: string;
   status: GameStatus;
+  awayTeamId: string;
   awayTeam: string;
+  homeTeamId: string;
   homeTeam: string;
   awayScore: number | null;
   homeScore: number | null;
@@ -248,8 +251,12 @@ export type TodayGameCard = {
   time: string;
   league: string;
   stadium: string;
+  homeTeamId: string;
   home: string;
+  homeLogoData?: string;
+  awayTeamId: string;
   away: string;
+  awayLogoData?: string;
   status: GameStatus;
 };
 

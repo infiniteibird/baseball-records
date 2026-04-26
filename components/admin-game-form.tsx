@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { StoredGame, TeamConfig } from "@/data/types";
@@ -246,6 +247,72 @@ export function AdminGameForm() {
     setMessage({
       type: "success",
       text: `${selectedTeam.name} 팀 초안을 삭제했습니다. 저장해야 전체 사이트에 반영됩니다.`,
+    });
+  }
+
+  async function handleTeamLogoUpload(file: File | null) {
+    if (!selectedTeam || !file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setMessage({
+        type: "error",
+        text: "PNG, JPG, JPEG, WEBP 같은 이미지 파일만 업로드할 수 있습니다.",
+      });
+      return;
+    }
+
+    if (file.size > MAX_TEAM_LOGO_BYTES) {
+      setMessage({
+        type: "error",
+        text: "팀 로고는 1.5MB 이하 이미지로 업로드해 주세요.",
+      });
+      return;
+    }
+
+    try {
+      const logoData = await readFileAsDataUrl(file);
+      updateTeamDrafts((current) =>
+        current.map((team) =>
+          team.id === selectedTeam.id
+            ? {
+                ...team,
+                logoData,
+              }
+            : team,
+        ),
+      );
+      setMessage({
+        type: "success",
+        text: `${selectedTeam.name} 팀 로고 초안을 반영했습니다. 저장해야 전체 사이트에 반영됩니다.`,
+      });
+    } catch {
+      setMessage({
+        type: "error",
+        text: "팀 로고 파일을 읽지 못했습니다. 다시 시도해 주세요.",
+      });
+    }
+  }
+
+  function handleRemoveTeamLogo() {
+    if (!selectedTeam) {
+      return;
+    }
+
+    updateTeamDrafts((current) =>
+      current.map((team) =>
+        team.id === selectedTeam.id
+          ? {
+              ...team,
+              logoData: undefined,
+            }
+          : team,
+      ),
+    );
+    setMessage({
+      type: "success",
+      text: `${selectedTeam.name} 팀 로고 초안을 제거했습니다. 저장해야 전체 사이트에 반영됩니다.`,
     });
   }
 
@@ -707,7 +774,15 @@ export function AdminGameForm() {
                           : "w-full rounded-2xl bg-card px-4 py-3 text-left text-sm font-medium text-foreground"
                       }
                     >
-                      <span className="block">{team.name}</span>
+                      <span className="flex items-center gap-3">
+                        <TeamLogo
+                          logoData={team.logoData}
+                          teamName={team.name}
+                          sizeClassName="h-10 w-10"
+                          textClassName={isActive ? "text-white" : "text-muted"}
+                        />
+                        <span className="block min-w-0 truncate">{team.name}</span>
+                      </span>
                       <span
                         className={
                           isActive
@@ -744,6 +819,49 @@ export function AdminGameForm() {
                   className="h-12 w-full rounded-2xl border border-line bg-white px-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-primary"
                 />
               </label>
+
+              <div className="rounded-3xl border border-line bg-soft p-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      팀 로고 업로드
+                    </h3>
+                    <p className="mt-1 text-xs text-muted">
+                      PNG, JPG, JPEG, WEBP 이미지를 업로드하면 순위 페이지에 표시됩니다.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <TeamLogo
+                      logoData={selectedTeam?.logoData}
+                      teamName={selectedTeam?.name ?? "팀"}
+                      sizeClassName="h-16 w-16"
+                    />
+                    <div className="flex flex-col gap-2">
+                      <label className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-white">
+                        로고 업로드
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                          className="sr-only"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0] ?? null;
+                            void handleTeamLogoUpload(file);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemoveTeamLogo}
+                        disabled={!selectedTeam?.logoData}
+                        className="rounded-2xl border border-line bg-card px-4 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        로고 제거
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="rounded-3xl border border-line bg-soft p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -941,6 +1059,7 @@ function cloneTeams(teams: TeamConfig[]) {
   return teams.map((team) => ({
     ...team,
     players: [...team.players],
+    logoData: team.logoData,
   }));
 }
 
@@ -1061,4 +1180,56 @@ function markGameAsEdited(game: StoredGame): StoredGame {
 
 function displayTeamName(teamId: string, teamNameMap: Map<string, string>) {
   return teamNameMap.get(teamId) ?? teamId;
+}
+
+const MAX_TEAM_LOGO_BYTES = 1_500_000;
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("invalid file result"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function TeamLogo({
+  logoData,
+  teamName,
+  sizeClassName,
+  textClassName,
+}: Readonly<{
+  logoData?: string;
+  teamName: string;
+  sizeClassName: string;
+  textClassName?: string;
+}>) {
+  if (logoData) {
+    return (
+      <Image
+        src={logoData}
+        alt={`${teamName} 로고`}
+        width={64}
+        height={64}
+        unoptimized
+        className={`${sizeClassName} shrink-0 rounded-2xl border border-line bg-white object-cover`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClassName} inline-flex shrink-0 items-center justify-center rounded-2xl border border-dashed border-line bg-white text-[11px] font-semibold ${textClassName ?? "text-muted"}`}
+      aria-label={`${teamName} 로고 없음`}
+    >
+      없음
+    </div>
+  );
 }

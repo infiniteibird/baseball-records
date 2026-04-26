@@ -4,10 +4,14 @@ create table if not exists public.teams (
   id text primary key,
   name text not null,
   players jsonb not null default '[]'::jsonb,
+  logo_data text,
   source text not null default 'mock',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.teams
+add column if not exists logo_data text;
 
 create table if not exists public.games (
   id text primary key,

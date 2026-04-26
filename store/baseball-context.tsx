@@ -23,6 +23,7 @@ import {
 } from "@/lib/baseball-persistence";
 import { buildSeedPayload } from "@/lib/baseball-seed";
 import { recordCodeMap } from "@/lib/record-codes";
+import { countPlateAppearances, splitPlateAppearances } from "@/lib/record-plate-appearances";
 import {
   mockHitterLeaders,
   mockPitcherLeaders,
@@ -203,7 +204,9 @@ export function BaseballProvider({
     const displayGames = state.games
       .map<DisplayGame>((game) => ({
         ...game,
+        awayTeamId: game.awayTeamId,
         awayTeam: teamNameMap.get(game.awayTeamId) ?? game.awayTeamId,
+        homeTeamId: game.homeTeamId,
         homeTeam: teamNameMap.get(game.homeTeamId) ?? game.homeTeamId,
       }))
       .sort(compareGamesDesc);
@@ -215,8 +218,12 @@ export function BaseballProvider({
       time: game.time,
       league: "교내 리그",
       stadium: game.stadium,
+      homeTeamId: game.homeTeamId,
       home: game.homeTeam,
+      homeLogoData: state.teams.find((team) => team.id === game.homeTeamId)?.logoData,
+      awayTeamId: game.awayTeamId,
       away: game.awayTeam,
+      awayLogoData: state.teams.find((team) => team.id === game.awayTeamId)?.logoData,
       status: game.status,
     }));
 
@@ -500,6 +507,7 @@ function cloneTeams(teams: TeamConfig[]) {
   return teams.map((team) => ({
     ...team,
     players: [...team.players],
+    logoData: team.logoData,
   }));
 }
 
@@ -774,25 +782,29 @@ function addTeamOffenseTotals(
   }
 
   batters.forEach((batter) => {
-    if (batter.inningResults.length > 0) {
-      accumulator.offenseHasData = true;
-      accumulator.plateAppearances += batter.inningResults.length;
-    }
-
     batter.inningResults.forEach((entries) => {
+      const plateAppearances = splitPlateAppearances(entries);
+      if (plateAppearances.length > 0) {
+        accumulator.offenseHasData = true;
+        accumulator.plateAppearances += plateAppearances.length;
+      }
+
       let countedOnBase = false;
 
-      entries.forEach((entry) => {
-        const definition = recordCodeMap.get(entry.code);
-        if (!definition) {
-          return;
-        }
+      plateAppearances.forEach((plateAppearance) => {
+        countedOnBase = false;
+        plateAppearance.forEach((entry) => {
+          const definition = recordCodeMap.get(entry.code);
+          if (!definition) {
+            return;
+          }
 
-        accumulator.offenseOuts += inningsFromRecordDefinition(definition.category);
-        if (!countedOnBase && isOnBaseCategory(definition.category)) {
-          accumulator.onBase += 1;
-          countedOnBase = true;
-        }
+          accumulator.offenseOuts += inningsFromRecordDefinition(definition.category);
+          if (!countedOnBase && isOnBaseCategory(definition.category)) {
+            accumulator.onBase += 1;
+            countedOnBase = true;
+          }
+        });
       });
     });
   });
@@ -809,17 +821,19 @@ function addTeamDefenseTotals(
 
   batters.forEach((batter) => {
     batter.inningResults.forEach((entries) => {
-      if (entries.length > 0) {
+      if (countPlateAppearances(entries) > 0) {
         accumulator.defenseHasData = true;
       }
 
-      entries.forEach((entry) => {
-        const definition = recordCodeMap.get(entry.code);
-        if (!definition) {
-          return;
-        }
+      splitPlateAppearances(entries).forEach((plateAppearance) => {
+        plateAppearance.forEach((entry) => {
+          const definition = recordCodeMap.get(entry.code);
+          if (!definition) {
+            return;
+          }
 
-        accumulator.defenseOuts += inningsFromRecordDefinition(definition.category);
+          accumulator.defenseOuts += inningsFromRecordDefinition(definition.category);
+        });
       });
     });
   });
@@ -851,7 +865,8 @@ function isOnBaseCategory(category: string) {
     category === "home_run" ||
     category === "walk" ||
     category === "intentional_walk" ||
-    category === "hit_by_pitch"
+    category === "hit_by_pitch" ||
+    category === "fielders_choice"
   );
 }
 

@@ -10,6 +10,11 @@ import {
 } from "@/lib/record-calculators";
 import { POSITION_OPTIONS, toPositionCode } from "@/lib/position-options";
 import {
+  flattenPlateAppearances,
+  formatPlateAppearanceEntries,
+  splitPlateAppearances,
+} from "@/lib/record-plate-appearances";
+import {
   recordCodeDefinitionsSorted,
   recordCodeCategoryLabel,
   searchRecordCodes,
@@ -31,7 +36,7 @@ type ActiveCellState = {
   team: "away" | "home";
   rowId: string;
   inningIndex: number;
-  mode: "replace" | "append";
+  mode: "replace" | "append" | "append_plate_appearance";
 };
 
 type PitcherAssignmentMode = {
@@ -418,7 +423,16 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
             }
 
             const nextEntry = { id: createId("entry"), code };
-            return activeCell.mode === "append" ? [...entries, nextEntry] : [nextEntry];
+            if (activeCell.mode === "append") {
+              return [...entries, nextEntry];
+            }
+
+            if (activeCell.mode === "append_plate_appearance") {
+              const nextAppearances = [...splitPlateAppearances(entries), [nextEntry]];
+              return flattenPlateAppearances(nextAppearances);
+            }
+
+            return [nextEntry];
           }),
         };
       }),
@@ -438,7 +452,37 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
               ),
             }
           : row,
-      ),
+        ),
+    );
+  }
+
+  function clearCurrentPlateAppearance(
+    team: "away" | "home",
+    rowId: string,
+    inningIndex: number,
+  ) {
+    updateBatters(team, (rows) =>
+      rows.map((row) => {
+        if (row.id !== rowId) {
+          return row;
+        }
+
+        return {
+          ...row,
+          inningResults: row.inningResults.map((entries, index) => {
+            if (index !== inningIndex) {
+              return entries;
+            }
+
+            const appearances = splitPlateAppearances(entries);
+            if (appearances.length <= 1) {
+              return [];
+            }
+
+            return flattenPlateAppearances(appearances.slice(0, -1));
+          }),
+        };
+      }),
     );
   }
 
@@ -662,7 +706,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
 
       <SectionCard
         title="타자 기록 입력"
-        subtitle="셀을 클릭해 기록을 입력합니다. Enter 선택, Tab 다음 타자, +로 추가 기록을 입력할 수 있습니다."
+        subtitle="셀을 클릭해 기록을 입력합니다. +는 같은 타석 추가 기록, PA+는 같은 이닝의 새 타석을 뜻합니다."
       >
         <div className="space-y-6">
           <BattingRecordTable
@@ -676,6 +720,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
             onOpenCell={setActiveCell}
             onApplyCode={applyCodeToCell}
             onClearCell={clearCell}
+            onClearCurrentPlateAppearance={clearCurrentPlateAppearance}
             onAssignCell={handleAssignBatterCell}
             onAddBatter={() =>
               updateBatters("away", (rows) => [
@@ -709,6 +754,7 @@ export function RecordPageClient({ gameId }: Readonly<{ gameId: string }>) {
             onOpenCell={setActiveCell}
             onApplyCode={applyCodeToCell}
             onClearCell={clearCell}
+            onClearCurrentPlateAppearance={clearCurrentPlateAppearance}
             onAssignCell={handleAssignBatterCell}
             onAddBatter={() =>
               updateBatters("home", (rows) => [
@@ -863,6 +909,7 @@ function BattingRecordTable({
   onAssignCell,
   onApplyCode,
   onClearCell,
+  onClearCurrentPlateAppearance,
   onAddBatter,
   onAddBatterBelow,
   onRemoveBatter,
@@ -886,6 +933,11 @@ function BattingRecordTable({
   onAssignCell: (team: "away" | "home", rowId: string, inningIndex: number) => void;
   onApplyCode: (code: string) => void;
   onClearCell: (team: "away" | "home", rowId: string, inningIndex: number) => void;
+  onClearCurrentPlateAppearance: (
+    team: "away" | "home",
+    rowId: string,
+    inningIndex: number,
+  ) => void;
   onAddBatter: () => void;
   onAddBatterBelow: (rowId: string) => void;
   onRemoveBatter: (rowId: string) => void;
@@ -912,14 +964,14 @@ function BattingRecordTable({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-line">
-        <div className="min-w-[1140px]">
-          <div className="grid grid-cols-[40px_120px_96px_repeat(9,50px)_48px_48px_64px_64px_60px_72px] items-center bg-[#e4ebf5] px-2 py-2 text-[10px] font-semibold text-muted">
+        <div className="min-w-[1460px]">
+          <div className="grid grid-cols-[44px_144px_108px_repeat(9,minmax(80px,1fr))_56px_56px_72px_72px_68px_76px] items-center bg-[#e4ebf5] px-2 py-3 text-[10px] font-semibold text-muted">
             <span>타순</span>
             <span>야수명</span>
             <span>포지션</span>
             {["1회", "2회", "3회", "4회", "5회", "6회", "7회", "8회", "9회"].map(
               (inning) => (
-                <span key={`${title}-${inning}`} className="text-center">
+                <span key={`${title}-${inning}`} className="text-center leading-tight">
                   {inning}
                 </span>
               ),
@@ -938,7 +990,7 @@ function BattingRecordTable({
               return (
                 <div
                   key={row.id}
-                  className={`grid grid-cols-[40px_120px_96px_repeat(9,50px)_48px_48px_64px_64px_60px_72px] items-stretch px-2 py-0 text-[11px] ${
+                  className={`grid grid-cols-[44px_144px_108px_repeat(9,minmax(80px,1fr))_56px_56px_72px_72px_68px_76px] items-stretch px-2 py-1 text-[11px] ${
                     rowIndex % 2 === 0 ? "bg-white" : "bg-[#fbfcfe]"
                   }`}
                 >
@@ -1009,6 +1061,13 @@ function BattingRecordTable({
                         activeCell.rowId === row.id &&
                         activeCell.inningIndex === inningIndex
                       }
+                      activeMode={
+                        activeCell?.team === teamKey &&
+                        activeCell.rowId === row.id &&
+                        activeCell.inningIndex === inningIndex
+                          ? activeCell.mode
+                          : null
+                      }
                       onAssign={() =>
                         onAssignCell(teamKey, row.id, inningIndex)
                       }
@@ -1023,7 +1082,9 @@ function BattingRecordTable({
                       onClose={() => onOpenCell(null)}
                       onApplyCode={onApplyCode}
                       onClear={() => onClearCell(teamKey, row.id, inningIndex)}
-                      onClearCurrent={() => onClearCell(teamKey, row.id, inningIndex)}
+                      onClearCurrent={() =>
+                        onClearCurrentPlateAppearance(teamKey, row.id, inningIndex)
+                      }
                     />
                   ))}
 
@@ -1349,6 +1410,7 @@ function PitchingRecordTable({
 function RecordCell({
   entries,
   isActive,
+  activeMode,
   allowAssignment,
   onAssign,
   onOpen,
@@ -1359,23 +1421,24 @@ function RecordCell({
 }: Readonly<{
   entries: Array<{ id: string; code: string }>;
   isActive: boolean;
+  activeMode: "replace" | "append" | "append_plate_appearance" | null;
   allowAssignment: boolean;
   onAssign: () => void;
-  onOpen: (mode: "replace" | "append") => void;
+  onOpen: (mode: "replace" | "append" | "append_plate_appearance") => void;
   onClose: () => void;
   onApplyCode: (code: string) => void;
   onClear: () => void;
   onClearCurrent: () => void;
 }>) {
   return (
-    <div className="group relative flex min-h-0 items-center justify-center border-l border-line first:border-l-0">
+    <div className="group relative flex min-h-[52px] items-stretch justify-center border-l border-line first:border-l-0">
       <button
         type="button"
         onClick={() => (allowAssignment ? onAssign() : onOpen("replace"))}
-        className="flex h-8 w-full min-w-0 items-center justify-center bg-white px-1 text-center text-[10px] leading-tight text-foreground hover:bg-[#f4f7fb]"
+        className="flex min-h-[52px] w-full min-w-0 items-center justify-center bg-white px-2 py-3 text-center text-[11px] leading-[1.3] text-foreground hover:bg-[#f4f7fb]"
       >
-        <span className="line-clamp-2">
-          {entries.length > 0 ? entries.map((entry) => entry.code).join(" + ") : ""}
+        <span className="block w-full whitespace-pre-wrap break-words">
+          {entries.length > 0 ? formatPlateAppearanceEntries(entries) : ""}
         </span>
       </button>
       <button
@@ -1384,9 +1447,20 @@ function RecordCell({
           event.stopPropagation();
           onOpen("append");
         }}
-        className="absolute right-1 top-1 rounded-full bg-primary/10 px-1 py-0.5 text-[9px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100"
       >
         +
+      </button>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen("append_plate_appearance");
+        }}
+        className="absolute bottom-1.5 right-1.5 rounded-full bg-[#e8f1ff] px-1.5 py-0.5 text-[9px] font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100"
+        aria-label="같은 이닝 새 타석 추가"
+      >
+        PA+
       </button>
       {entries.length > 0 ? (
         <button
@@ -1395,14 +1469,15 @@ function RecordCell({
             event.stopPropagation();
             onClear();
           }}
-          className="absolute left-1 top-1 rounded-full bg-[#fff1f1] px-1 py-0.5 text-[9px] font-bold text-[#a83333] opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute left-1.5 top-1.5 rounded-full bg-[#fff1f1] px-1.5 py-0.5 text-[9px] font-bold text-[#a83333] opacity-0 transition-opacity group-hover:opacity-100"
         >
           ×
         </button>
       ) : null}
       {isActive ? (
         <RecordCodeEditor
-          initialValue={entries[0]?.code ?? ""}
+          initialValue={activeMode === "replace" ? getLastPlateAppearanceCode(entries) : ""}
+          canClearCurrent={activeMode === "replace"}
           onClose={onClose}
           onSelect={onApplyCode}
           onClearCurrent={onClearCurrent}
@@ -1414,11 +1489,13 @@ function RecordCell({
 
 function RecordCodeEditor({
   initialValue,
+  canClearCurrent,
   onClose,
   onSelect,
   onClearCurrent,
 }: Readonly<{
   initialValue: string;
+  canClearCurrent: boolean;
   onClose: () => void;
   onSelect: (code: string) => void;
   onClearCurrent: () => void;
@@ -1512,7 +1589,9 @@ function RecordCodeEditor({
         <button
           type="button"
           onClick={() => {
-            onClearCurrent();
+            if (canClearCurrent) {
+              onClearCurrent();
+            }
             onClose();
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-[#fff1f1] px-1.5 py-0.5 text-[10px] font-bold text-[#a83333]"
@@ -1584,6 +1663,12 @@ function insertBatterRowBelow(rows: BatterRecordRow[], rowId: string) {
     createEmptyBatterRow(sourceRow.battingOrder, "", sourceRow.position),
   );
   return nextRows;
+}
+
+function getLastPlateAppearanceCode(entries: Array<{ id: string; code: string }>) {
+  const appearances = splitPlateAppearances(entries);
+  const lastAppearance = appearances[appearances.length - 1];
+  return lastAppearance?.[0]?.code ?? "";
 }
 
 function cloneRecord(record: SavedGameRecord): SavedGameRecord {

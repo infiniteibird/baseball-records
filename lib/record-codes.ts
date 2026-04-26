@@ -231,12 +231,6 @@ const hitSafeCodes = [
   "좌실",
   "중실",
   "우실",
-  "투야선",
-  "포야선",
-  "1야선",
-  "2야선",
-  "3야선",
-  "유야선",
   "투희플출",
   "포희플출",
   "1희플출",
@@ -250,6 +244,43 @@ const hitSafeCodes = [
   "중안R",
   "우안R",
 ];
+
+const fieldersChoiceCodes = [
+  "야수선택",
+  "투야선",
+  "포야선",
+  "1야선",
+  "2야선",
+  "3야선",
+  "유야선",
+  "투땅R",
+  "포땅R",
+  "1땅R",
+  "2땅R",
+  "3땅R",
+  "유땅R",
+  "좌땅R",
+  "중땅R",
+  "우땅R",
+];
+
+export const fieldersChoiceOutCodes = [
+  "투땅R",
+  "포땅R",
+  "1땅R",
+  "2땅R",
+  "3땅R",
+  "유땅R",
+  "좌땅R",
+  "중땅R",
+  "우땅R",
+] as const;
+
+const fieldersChoiceOutCodeSet = new Set<string>(fieldersChoiceOutCodes);
+
+export function isFieldersChoiceOutCode(code: string) {
+  return fieldersChoiceOutCodeSet.has(code);
+}
 
 const doubleCodes = [
   "좌2",
@@ -321,6 +352,10 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
   createDefinition("병살", "double_play", ["ㅂㅅ", "dp"]),
   createDefinition("실책", "error", ["ㅅㅊ", "e"]),
   createDefinition("야수선택", "fielders_choice", ["ㅅㅅㅌ", "fc"]),
+  ...defineBatch(
+    fieldersChoiceCodes.filter((code) => code !== "야수선택"),
+    "fielders_choice",
+  ),
   createDefinition("희번", "sac_bunt", ["ㅎㅂ", "sac bunt"]),
   createDefinition("희플", "sac_fly", ["ㅎㅍ", "sac fly"]),
   createDefinition("대타", "substitution", ["ㄷㅌ"]),

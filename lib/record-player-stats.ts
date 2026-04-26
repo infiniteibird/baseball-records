@@ -5,6 +5,7 @@ import type {
 } from "@/data/types";
 import type { BatterRecordRow, SavedGameRecord } from "@/types/record";
 import { recordCodeMap } from "@/lib/record-codes";
+import { splitPlateAppearances } from "@/lib/record-plate-appearances";
 import { buildPitchingRowsFromAssignments } from "@/lib/pitching-calculator";
 
 type RawHitterAccumulator = {
@@ -179,71 +180,73 @@ function aggregateBattersByTeam(
     };
 
     for (const cellEntries of row.inningResults) {
-      for (const entry of cellEntries) {
-        const definition = recordCodeMap.get(entry.code);
-        if (!definition) {
-          continue;
-        }
+      for (const plateAppearance of splitPlateAppearances(cellEntries)) {
+        for (const entry of plateAppearance) {
+          const definition = recordCodeMap.get(entry.code);
+          if (!definition) {
+            continue;
+          }
 
-        switch (definition.category) {
-          case "single":
-            current.hits += 1;
-            current.ab += 1;
-            break;
-          case "double":
-            current.hits += 1;
-            current.doubles += 1;
-            current.ab += 1;
-            break;
-          case "triple":
-            current.hits += 1;
-            current.triples += 1;
-            current.ab += 1;
-            break;
-          case "home_run":
-            current.hits += 1;
-            current.hr += 1;
-            current.rbi += 1;
-            current.runs += 1;
-            current.ab += 1;
-            break;
-          case "walk":
-          case "intentional_walk":
-            current.bb += 1;
-            break;
-          case "hit_by_pitch":
-            current.hbp += 1;
-            break;
-          case "strikeout":
-            current.so += 1;
-            current.ab += 1;
-            break;
-          case "strikeout_reached":
-            current.so += 1;
-            current.ab += 1;
-            break;
-          case "groundout":
-          case "out":
-            current.ab += 1;
-            break;
-          case "double_play":
-            current.ab += 1;
-            break;
-          case "error":
-          case "fielders_choice":
-            current.ab += 1;
-            break;
-          case "rbi":
-            current.rbi += 1;
-            break;
-          case "run_scored":
-            current.runs += 1;
-            break;
-          case "steal":
-            current.sb += 1;
-            break;
-          default:
-            break;
+          switch (definition.category) {
+            case "single":
+              current.hits += 1;
+              current.ab += 1;
+              break;
+            case "double":
+              current.hits += 1;
+              current.doubles += 1;
+              current.ab += 1;
+              break;
+            case "triple":
+              current.hits += 1;
+              current.triples += 1;
+              current.ab += 1;
+              break;
+            case "home_run":
+              current.hits += 1;
+              current.hr += 1;
+              current.rbi += 1;
+              current.runs += 1;
+              current.ab += 1;
+              break;
+            case "walk":
+            case "intentional_walk":
+              current.bb += 1;
+              break;
+            case "hit_by_pitch":
+              current.hbp += 1;
+              break;
+            case "strikeout":
+              current.so += 1;
+              current.ab += 1;
+              break;
+            case "strikeout_reached":
+              current.so += 1;
+              current.ab += 1;
+              break;
+            case "groundout":
+            case "out":
+              current.ab += 1;
+              break;
+            case "double_play":
+              current.ab += 1;
+              break;
+            case "error":
+            case "fielders_choice":
+              current.ab += 1;
+              break;
+            case "rbi":
+              current.rbi += 1;
+              break;
+            case "run_scored":
+              current.runs += 1;
+              break;
+            case "steal":
+              current.sb += 1;
+              break;
+            default:
+              break;
+          }
         }
       }
     }

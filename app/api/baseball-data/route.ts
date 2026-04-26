@@ -22,6 +22,7 @@ type DbTeamRow = {
   id: string;
   name: string;
   players: unknown;
+  logo_data?: unknown;
   source?: string;
   created_at?: string;
   updated_at?: string;
@@ -60,6 +61,7 @@ type UpsertTeamRow = {
   id: string;
   name: string;
   players: string[];
+  logo_data?: string;
 };
 
 type UpsertGameRow = {
@@ -342,6 +344,19 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeLogoData(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("data:image/")) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
 function buildPayloadFromDb(
   teamRows: DbTeamRow[],
   gameRows: DbGameRow[],
@@ -356,6 +371,7 @@ function buildPayloadFromDb(
       id: normalizeText(team.id),
       name: normalizeText(team.name),
       players: parseTeamPlayers(team.players),
+      logoData: normalizeLogoData(team.logo_data),
       source: "mock" as const,
     }))
     .filter((team) => team.id.length > 0 && team.name.length > 0);
@@ -541,7 +557,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
   };
 
   const teams = rawTeams
-    .map((item) => {
+    .map<UpsertTeamRow | null>((item) => {
       if (!item || typeof item !== "object") {
         return null;
       }
@@ -550,6 +566,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
         id?: unknown;
         name?: unknown;
         players?: unknown;
+        logoData?: unknown;
       };
 
       const id = normalizeText(candidateTeam.id);
@@ -564,6 +581,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
         id,
         name,
         players: parseTeamPlayers(candidateTeam.players),
+        logo_data: normalizeLogoData(candidateTeam.logoData),
       };
     })
     .filter((team): team is UpsertTeamRow => team !== null);
@@ -726,7 +744,7 @@ function cryptoRandomId() {
 function readFromDatabase() {
   return Promise.all([
     supabaseFetch<DbTeamRow[]>(
-      "teams?select=id,name,players,updated_at",
+      "teams?select=id,name,players,logo_data,updated_at",
     ),
     supabaseFetch<DbGameRow[]>(
       "games?select=id,date,time,stadium,status,away_team_id,home_team_id,away_score,home_score,source,note,detail_available,record,updated_at",
@@ -799,6 +817,7 @@ function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPaylo
     id: team.id,
     name: team.name,
     players: [...new Set(team.players)],
+    logo_data: normalizeLogoData(team.logo_data),
   }));
 
   const playerStats = normalized.uploadedPlayers.map((player) => ({

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { SectionCard } from "@/components/section-card";
 import { seasonOptions } from "@/data/mock-teams";
@@ -8,6 +9,10 @@ import { calculateStandings, useBaseballData } from "@/store/baseball-context";
 export default function StandingsPage() {
   const { standings, state } = useBaseballData();
   const [selectedSeason, setSelectedSeason] = useState(seasonOptions[0]);
+  const teamMap = useMemo(
+    () => new Map(state.teams.map((team) => [team.id, team] as const)),
+    [state.teams],
+  );
 
   const displayedStandings = useMemo(() => {
     const seasonYear = getSeasonYear(selectedSeason);
@@ -94,7 +99,7 @@ export default function StandingsPage() {
           <div className="overflow-x-auto pb-2">
             <div className="inline-block min-w-full pr-6 align-top">
               <div className="w-max min-w-full overflow-hidden rounded-2xl border border-line">
-                <div className="grid grid-cols-[52px_120px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 bg-soft px-4 py-3 text-xs font-semibold text-muted">
+                <div className="grid grid-cols-[52px_156px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 bg-soft px-4 py-3 text-xs font-semibold text-muted">
                 <span>순위</span>
                 <span>팀명</span>
                 <span className="text-right">경기</span>
@@ -111,11 +116,15 @@ export default function StandingsPage() {
                   {displayedStandings.map((team) => (
                     <div
                       key={team.team}
-                      className="grid grid-cols-[52px_120px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 px-4 py-3 text-xs"
+                      className="grid grid-cols-[52px_156px_56px_44px_44px_44px_56px_68px_144px_144px_156px] items-center gap-x-2 px-4 py-3 text-xs"
                     >
                       <span className="font-bold text-primary">{team.rank}</span>
-                      <span className="truncate font-semibold text-foreground">
-                        {team.team}
+                      <span className="flex min-w-0 items-center gap-3 font-semibold text-foreground">
+                        <StandingsTeamLogo
+                          logoData={teamMap.get(team.teamId)?.logoData}
+                          teamName={team.team}
+                        />
+                        <span className="truncate">{team.team}</span>
                       </span>
                       <span className="text-right text-muted">{team.games}</span>
                       <span className="text-right font-semibold text-foreground">
@@ -181,5 +190,35 @@ export default function StandingsPage() {
         </SectionCard>
       </div>
     </main>
+  );
+}
+
+function StandingsTeamLogo({
+  logoData,
+  teamName,
+}: Readonly<{
+  logoData?: string;
+  teamName: string;
+}>) {
+  if (logoData) {
+    return (
+      <Image
+        src={logoData}
+        alt={`${teamName} 로고`}
+        width={32}
+        height={32}
+        unoptimized
+        className="h-8 w-8 shrink-0 rounded-xl border border-line bg-white object-cover"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-dashed border-line bg-white text-[10px] font-semibold text-muted"
+      aria-label={`${teamName} 로고 없음`}
+    >
+      -
+    </span>
   );
 }

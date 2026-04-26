@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { SectionCard } from "@/components/section-card";
 import type { HitterStatsRow, PlayerRecord, PitcherStatsRow } from "@/data/types";
 import { useBaseballData } from "@/store/baseball-context";
@@ -125,8 +126,12 @@ export default function Home() {
                   <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
                     <div className="min-w-0">
                       <p className="text-xs text-muted">원정</p>
-                      <p className="truncate text-xl font-bold text-foreground">
-                        {game.away}
+                      <p className="flex items-center justify-start gap-2 text-xl font-bold text-foreground">
+                        <span className="truncate">{game.away}</span>
+                        <TeamSideLogo
+                          logoData={game.awayLogoData}
+                          teamName={game.away}
+                        />
                       </p>
                     </div>
                     <div className="text-center">
@@ -137,8 +142,12 @@ export default function Home() {
                     </div>
                     <div className="min-w-0 text-right">
                       <p className="text-xs text-muted">홈</p>
-                      <p className="truncate text-xl font-bold text-foreground">
-                        {game.home}
+                      <p className="flex items-center justify-end gap-2 text-xl font-bold text-foreground">
+                        <TeamSideLogo
+                          logoData={game.homeLogoData}
+                          teamName={game.home}
+                        />
+                        <span className="truncate">{game.home}</span>
                       </p>
                     </div>
                   </div>
@@ -230,6 +239,36 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+function TeamSideLogo({
+  logoData,
+  teamName,
+}: Readonly<{
+  logoData?: string;
+  teamName: string;
+}>) {
+  if (logoData) {
+    return (
+      <Image
+        src={logoData}
+        alt={`${teamName} 로고`}
+        width={28}
+        height={28}
+        unoptimized
+        className="h-7 w-7 shrink-0 rounded-lg border border-line bg-white object-cover"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-dashed border-line bg-white text-[10px] font-semibold text-muted"
+      aria-label={`${teamName} 로고 없음`}
+    >
+      -
+    </span>
   );
 }
 

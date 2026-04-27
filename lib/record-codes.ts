@@ -222,15 +222,6 @@ const hitSafeCodes = [
   "좌번안",
   "중번안",
   "우번안",
-  "투실",
-  "포실",
-  "1실",
-  "2실",
-  "3실",
-  "유실",
-  "좌실",
-  "중실",
-  "우실",
   "투희플출",
   "포희플출",
   "1희플출",
@@ -243,6 +234,18 @@ const hitSafeCodes = [
   "좌안R",
   "중안R",
   "우안R",
+];
+
+const errorCodes = [
+  "투실",
+  "포실",
+  "1실",
+  "2실",
+  "3실",
+  "유실",
+  "좌실",
+  "중실",
+  "우실",
 ];
 
 const fieldersChoiceCodes = [
@@ -365,6 +368,7 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
     ["실책"],
     "error",
   ),
+  ...defineBatch(errorCodes, "error"),
   ...defineBatch(
     [
       ...hitSafeCodes,

@@ -25,6 +25,7 @@ type RawPitcherAccumulator = {
   earnedRuns: number;
   walks: number;
   hitByPitch: number;
+  balks: number;
   strikeouts: number;
   homeRunsAllowed: number;
   batters: number;
@@ -150,6 +151,9 @@ function accumulatePitcherTotalsByEntries(entries: RecordCellEntry[]): RawPitche
         case "hit_by_pitch":
           accumulator.hitByPitch += 1;
           break;
+        case "balk":
+          accumulator.balks += 1;
+          break;
         case "groundout":
         case "out":
           accumulator.atBats += 1;
@@ -189,6 +193,7 @@ function accumulatePitcherTotalsByEntries(entries: RecordCellEntry[]): RawPitche
       earnedRuns: 0,
       walks: 0,
       hitByPitch: 0,
+      balks: 0,
       strikeouts: 0,
       homeRunsAllowed: 0,
       batters: 0,
@@ -221,6 +226,7 @@ function appendSequenceTotals(
     totals.earnedRuns += slotTotals.earnedRuns;
     totals.walks += slotTotals.walks;
     totals.hitByPitch += slotTotals.hitByPitch;
+    totals.balks += slotTotals.balks;
     totals.strikeouts += slotTotals.strikeouts;
     totals.homeRunsAllowed += slotTotals.homeRunsAllowed;
     totals.atBats += slotTotals.atBats;
@@ -333,6 +339,7 @@ export function buildPitchingRowsFromAssignments(
             earnedRuns: 0,
             walks: 0,
             hitByPitch: 0,
+            balks: 0,
             strikeouts: 0,
             homeRunsAllowed: 0,
             batters: 0,
@@ -349,6 +356,7 @@ export function buildPitchingRowsFromAssignments(
           earnedRuns: 0,
           walks: 0,
           hitByPitch: 0,
+          balks: 0,
           strikeouts: 0,
           homeRunsAllowed: 0,
           batters: 0,
@@ -365,6 +373,7 @@ export function buildPitchingRowsFromAssignments(
     earnedRuns: manual?.manualEarnedRuns ?? totals.earnedRuns,
     walks: totals.walks,
     hitByPitch: totals.hitByPitch,
+    balks: totals.balks,
     strikeouts: totals.strikeouts,
     homeRunsAllowed: totals.homeRunsAllowed,
     batters: totals.batters,

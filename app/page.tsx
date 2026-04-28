@@ -3,6 +3,12 @@
 import Image from "next/image";
 import { SectionCard } from "@/components/section-card";
 import type { HitterStatsRow, PlayerRecord, PitcherStatsRow } from "@/data/types";
+import {
+  buildTeamFinishedGameCounts,
+  buildTeamPlateAppearanceMinimums,
+  isQualifiedHitter,
+  isQualifiedPitcher,
+} from "@/lib/player-qualification";
 import { useBaseballData } from "@/store/baseball-context";
 import { useMemo } from "react";
 
@@ -56,15 +62,32 @@ export default function Home() {
     standings,
     displayHitters,
     displayPitchers,
+    state,
   } = useBaseballData();
   const standingsSummary = standings.slice(0, 5);
+  const teamFinishedGameCounts = useMemo(
+    () => buildTeamFinishedGameCounts(state.games, state.teams),
+    [state.games, state.teams],
+  );
+  const teamPlateAppearanceMinimums = useMemo(
+    () => buildTeamPlateAppearanceMinimums(teamFinishedGameCounts),
+    [teamFinishedGameCounts],
+  );
   const hitterLeaders = useMemo(
-    () => buildTopHitterLeaders(displayHitters),
-    [displayHitters],
+    () =>
+      buildTopHitterLeaders(
+        displayHitters,
+        teamPlateAppearanceMinimums,
+      ),
+    [displayHitters, teamPlateAppearanceMinimums],
   );
   const pitcherLeaders = useMemo(
-    () => buildTopPitcherLeaders(displayPitchers),
-    [displayPitchers],
+    () =>
+      buildTopPitcherLeaders(
+        displayPitchers,
+        teamFinishedGameCounts,
+      ),
+    [displayPitchers, teamFinishedGameCounts],
   );
 
   return (
@@ -229,7 +252,7 @@ export default function Home() {
         <div className="lg:col-span-7">
           <SectionCard
             title="타자 / 투수 TOP 기록"
-            subtitle="선수 기록은 현재 mock 유지, 팀명만 공통 상태 기준으로 표시됩니다."
+            subtitle="선수 기록 페이지와 같은 규정 기준을 통과한 선수만 표시합니다."
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <LeaderList title="타자 TOP (타율)" leaders={hitterLeaders} />
@@ -272,8 +295,13 @@ function TeamSideLogo({
   );
 }
 
-function buildTopHitterLeaders(hitters: HitterStatsRow[]) {
-  const sorted = [...hitters].sort((a, b) => {
+function buildTopHitterLeaders(
+  hitters: HitterStatsRow[],
+  teamPlateAppearanceMinimums: Record<string, number>,
+) {
+  const sorted = hitters
+    .filter((player) => isQualifiedHitter(player, teamPlateAppearanceMinimums))
+    .sort((a, b) => {
     const avgA = parseRate(a.avg);
     const avgB = parseRate(b.avg);
 
@@ -286,7 +314,7 @@ function buildTopHitterLeaders(hitters: HitterStatsRow[]) {
     }
 
     return a.player.localeCompare(b.player, "ko");
-  });
+    });
 
   return sorted.slice(0, 3).map((player, index) => ({
     rank: index + 1,
@@ -296,8 +324,13 @@ function buildTopHitterLeaders(hitters: HitterStatsRow[]) {
   })) satisfies PlayerRecord[];
 }
 
-function buildTopPitcherLeaders(pitchers: PitcherStatsRow[]) {
-  const sorted = [...pitchers].sort((a, b) => {
+function buildTopPitcherLeaders(
+  pitchers: PitcherStatsRow[],
+  teamFinishedGameCounts: Record<string, number>,
+) {
+  const sorted = pitchers
+    .filter((player) => isQualifiedPitcher(player, teamFinishedGameCounts))
+    .sort((a, b) => {
     const eraA = parseRate(a.era);
     const eraB = parseRate(b.era);
 
@@ -310,7 +343,7 @@ function buildTopPitcherLeaders(pitchers: PitcherStatsRow[]) {
     }
 
     return a.player.localeCompare(b.player, "ko");
-  });
+    });
 
   return sorted.slice(0, 3).map((player, index) => ({
     rank: index + 1,

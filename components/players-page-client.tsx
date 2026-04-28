@@ -5,6 +5,10 @@ import {
   type HitterStatsRow,
   type PitcherStatsRow,
 } from "@/data/types";
+import {
+  isQualifiedHitter,
+  isQualifiedPitcher,
+} from "@/lib/player-qualification";
 
 type PlayersPageClientProps = {
   hitters: HitterStatsRow[];
@@ -151,13 +155,12 @@ export function PlayersPageClient({
       normalizedSearch.length === 0
         ? true
         : player.player.toLowerCase().includes(normalizedSearch);
-    const teamMinimum = teamPlateAppearanceMinimums[player.team] ?? 0;
     const matchesQualification =
       hitterQualificationFilter === "all"
         ? true
         : hitterQualificationFilter === "qualified_in"
-          ? player.pa >= teamMinimum
-          : player.pa < teamMinimum;
+          ? isQualifiedHitter(player, teamPlateAppearanceMinimums)
+          : !isQualifiedHitter(player, teamPlateAppearanceMinimums);
 
     return matchesTeam && matchesSearch && matchesQualification;
   });
@@ -169,15 +172,12 @@ export function PlayersPageClient({
       normalizedSearch.length === 0
         ? true
         : player.player.toLowerCase().includes(normalizedSearch);
-    const teamGames = teamFinishedGameCounts[player.team] ?? 0;
-    const minimumOuts = toRequiredPitcherQualificationOuts(teamGames);
-    const pitcherOuts = inningsStringToOuts(player.ip);
     const matchesQualification =
       pitcherQualificationFilter === "all"
         ? true
         : pitcherQualificationFilter === "qualified_in"
-          ? pitcherOuts >= minimumOuts
-          : pitcherOuts < minimumOuts;
+          ? isQualifiedPitcher(player, teamFinishedGameCounts)
+          : !isQualifiedPitcher(player, teamFinishedGameCounts);
 
     return matchesTeam && matchesSearch && matchesQualification;
   });
@@ -780,18 +780,6 @@ function compareValues(
   const compared = Number(valueA) - Number(valueB);
 
   return direction === "asc" ? compared : compared * -1;
-}
-
-function inningsStringToOuts(value: string) {
-  const [wholePart, partialPart] = value.split(".");
-  const wholeInnings = Number(wholePart || 0);
-  const remainderOuts = Number(partialPart || 0);
-
-  return wholeInnings * 3 + remainderOuts;
-}
-
-function toRequiredPitcherQualificationOuts(teamGames: number) {
-  return teamGames * inningsStringToOuts("1.2");
 }
 
 function sortArrow(direction: SortDirection) {

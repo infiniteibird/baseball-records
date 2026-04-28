@@ -3,48 +3,21 @@
 import { useMemo } from "react";
 import { PlayersPageClient } from "@/components/players-page-client";
 import { SectionCard } from "@/components/section-card";
+import {
+  buildTeamFinishedGameCounts,
+  buildTeamPlateAppearanceMinimums,
+} from "@/lib/player-qualification";
 import { useBaseballData } from "@/store/baseball-context";
 
 export default function PlayersPage() {
   const { displayHitters, displayPitchers, playerTeams, state } =
     useBaseballData();
-  const teamFinishedGameCounts = useMemo(() => {
-    const teamNameById = new Map(
-      state.teams.map((team) => [team.id, team.name] as const),
-    );
-    const counts = new Map<string, number>();
-
-    state.games.forEach((game) => {
-      if (
-        game.status !== "종료" ||
-        game.homeScore === null ||
-        game.awayScore === null
-      ) {
-        return;
-      }
-
-      const homeTeam = teamNameById.get(game.homeTeamId);
-      const awayTeam = teamNameById.get(game.awayTeamId);
-
-      if (homeTeam) {
-        counts.set(homeTeam, (counts.get(homeTeam) ?? 0) + 1);
-      }
-
-      if (awayTeam) {
-        counts.set(awayTeam, (counts.get(awayTeam) ?? 0) + 1);
-      }
-    });
-
-    return Object.fromEntries(Array.from(counts.entries()));
-  }, [state.games, state.teams]);
+  const teamFinishedGameCounts = useMemo(
+    () => buildTeamFinishedGameCounts(state.games, state.teams),
+    [state.games, state.teams],
+  );
   const teamPlateAppearanceMinimums = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(teamFinishedGameCounts).map(([team, games]) => [
-          team,
-          games * 2,
-        ]),
-      ),
+    () => buildTeamPlateAppearanceMinimums(teamFinishedGameCounts),
     [teamFinishedGameCounts],
   );
 

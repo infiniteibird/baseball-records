@@ -29,6 +29,7 @@ type RawHitterAccumulator = {
 type RawPitcherAccumulator = {
   teamId: string;
   name: string;
+  games: number;
   hitsAllowed: number;
   runs: number;
   earnedRuns: number;
@@ -142,11 +143,19 @@ export function buildRecordedPlayerPitchingStats(
         teamId: row.teamId,
         team: row.teamId,
         era: inningsDecimal === 0 ? "0.00" : (row.earnedRuns * 9 / inningsDecimal).toFixed(2),
+        winRate: formatRate(row.wins, row.wins + row.losses),
         whip: inningsDecimal === 0
           ? "0.00"
           : ((row.walks + row.hitByPitch + row.hitsAllowed) / inningsDecimal).toFixed(2),
+        games: row.games,
         ip,
         so: row.strikeouts,
+        hitsAllowed: row.hitsAllowed,
+        homeRunsAllowed: row.homeRunsAllowed,
+        runs: row.runs,
+        earnedRuns: row.earnedRuns,
+        walks: row.walks,
+        hbp: row.hitByPitch,
         wins: row.wins,
         losses: row.losses,
         saves: row.saves,
@@ -344,6 +353,7 @@ function aggregatePitchingRows(
     runs: number;
     earnedRuns: number;
     walks: number;
+    hitByPitch?: number;
     strikeouts: number;
     homeRunsAllowed: number;
     batters: number;
@@ -367,6 +377,7 @@ function aggregatePitchingRows(
     const base = pitcherMap.get(key) ?? {
       teamId,
       name,
+      games: 0,
       hitsAllowed: 0,
       runs: 0,
       earnedRuns: 0,
@@ -384,10 +395,12 @@ function aggregatePitchingRows(
 
     pitcherMap.set(key, {
       ...base,
+      games: base.games + (hasRecordedPitcherAppearance(row) ? 1 : 0),
       hitsAllowed: base.hitsAllowed + row.hitsAllowed,
       runs: base.runs + row.runs,
       earnedRuns: base.earnedRuns + row.earnedRuns,
       walks: base.walks + row.walks,
+      hitByPitch: base.hitByPitch + (row.hitByPitch ?? 0),
       strikeouts: base.strikeouts + row.strikeouts,
       outs: base.outs + (Number(row.ip.split(".")[0]) * 3 + Number(row.ip.split(".")[1] ?? 0)),
       homeRunsAllowed: base.homeRunsAllowed + row.homeRunsAllowed,
@@ -398,6 +411,38 @@ function aggregatePitchingRows(
       saves: base.saves + (row.save === "세" ? 1 : 0),
     });
   }
+}
+
+function hasRecordedPitcherAppearance(row: {
+  ip: string;
+  hitsAllowed: number;
+  runs: number;
+  earnedRuns: number;
+  walks: number;
+  hitByPitch?: number;
+  strikeouts: number;
+  homeRunsAllowed: number;
+  batters: number;
+  atBats: number;
+  win: string;
+  loss: string;
+  save: string;
+}) {
+  return (
+    row.ip !== "0.0" ||
+    row.hitsAllowed > 0 ||
+    row.runs > 0 ||
+    row.earnedRuns > 0 ||
+    row.walks > 0 ||
+    (row.hitByPitch ?? 0) > 0 ||
+    row.strikeouts > 0 ||
+    row.homeRunsAllowed > 0 ||
+    row.batters > 0 ||
+    row.atBats > 0 ||
+    row.win.length > 0 ||
+    row.loss.length > 0 ||
+    row.save.length > 0
+  );
 }
 
 function formatRate(numerator: number, denominator: number) {

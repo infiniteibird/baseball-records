@@ -17,6 +17,7 @@ type PlayersPageClientProps = {
 type PlayerTab = "hitters" | "pitchers";
 type SortDirection = "asc" | "desc";
 type HitterQualificationFilter = "all" | "qualified_in" | "qualified_out";
+type PitcherQualificationFilter = "all" | "qualified_in" | "qualified_out";
 type HitterSortKey =
   | "player"
   | "avg"
@@ -39,14 +40,22 @@ type HitterSortKey =
   | "ops";
 type PitcherSortKey =
   | "player"
-  | "team"
   | "era"
-  | "whip"
-  | "ip"
-  | "so"
+  | "team_games"
+  | "games"
   | "wins"
   | "losses"
-  | "saves";
+  | "saves"
+  | "ip"
+  | "so"
+  | "hits_allowed"
+  | "home_runs_allowed"
+  | "runs"
+  | "earned_runs"
+  | "walks"
+  | "hbp"
+  | "win_rate"
+  | "whip";
 
 const tabs: { key: PlayerTab; label: string; description: string }[] = [
   {
@@ -57,7 +66,7 @@ const tabs: { key: PlayerTab; label: string; description: string }[] = [
   {
     key: "pitchers",
     label: "투수 기록",
-    description: "ERA, WHIP, 이닝, 탈삼진, 승, 패, 세이브",
+    description: "ERA, 팀 경기, 선수 경기, 승, 패, 세이브, 이닝, 탈삼진, 피안타, 피홈런, 실점, 자책점, 볼넷, 사구, 승률, WHIP",
   },
 ];
 
@@ -85,14 +94,22 @@ const hitterColumns: { key: HitterSortKey; label: string }[] = [
 
 const pitcherColumns: { key: PitcherSortKey; label: string }[] = [
   { key: "player", label: "선수명" },
-  { key: "team", label: "팀" },
   { key: "era", label: "ERA" },
-  { key: "whip", label: "WHIP" },
-  { key: "ip", label: "이닝" },
-  { key: "so", label: "탈삼진" },
+  { key: "team_games", label: "팀 경기" },
+  { key: "games", label: "선수 경기" },
   { key: "wins", label: "승" },
   { key: "losses", label: "패" },
   { key: "saves", label: "세이브" },
+  { key: "ip", label: "이닝" },
+  { key: "so", label: "탈삼진" },
+  { key: "hits_allowed", label: "피안타" },
+  { key: "home_runs_allowed", label: "피홈런" },
+  { key: "runs", label: "실점" },
+  { key: "earned_runs", label: "자책점" },
+  { key: "walks", label: "볼넷" },
+  { key: "hbp", label: "사구" },
+  { key: "win_rate", label: "승률" },
+  { key: "whip", label: "WHIP" },
 ];
 
 export function PlayersPageClient({
@@ -107,6 +124,8 @@ export function PlayersPageClient({
   const [selectedTeam, setSelectedTeam] = useState("전체");
   const [hitterQualificationFilter, setHitterQualificationFilter] =
     useState<HitterQualificationFilter>("all");
+  const [pitcherQualificationFilter, setPitcherQualificationFilter] =
+    useState<PitcherQualificationFilter>("all");
   const [hitterSort, setHitterSort] = useState<{
     key: HitterSortKey;
     direction: SortDirection;
@@ -150,8 +169,17 @@ export function PlayersPageClient({
       normalizedSearch.length === 0
         ? true
         : player.player.toLowerCase().includes(normalizedSearch);
+    const teamGames = teamFinishedGameCounts[player.team] ?? 0;
+    const minimumOuts = toRequiredPitcherQualificationOuts(teamGames);
+    const pitcherOuts = inningsStringToOuts(player.ip);
+    const matchesQualification =
+      pitcherQualificationFilter === "all"
+        ? true
+        : pitcherQualificationFilter === "qualified_in"
+          ? pitcherOuts >= minimumOuts
+          : pitcherOuts < minimumOuts;
 
-    return matchesTeam && matchesSearch;
+    return matchesTeam && matchesSearch && matchesQualification;
   });
 
   const sortedHitters = [...filteredHitters].sort((playerA, playerB) =>
@@ -164,8 +192,8 @@ export function PlayersPageClient({
 
   const sortedPitchers = [...filteredPitchers].sort((playerA, playerB) =>
     compareValues(
-      pitcherValue(playerA, pitcherSort.key),
-      pitcherValue(playerB, pitcherSort.key),
+      pitcherValue(playerA, pitcherSort.key, teamFinishedGameCounts),
+      pitcherValue(playerB, pitcherSort.key, teamFinishedGameCounts),
       pitcherSort.direction,
     ),
   );
@@ -274,6 +302,40 @@ export function PlayersPageClient({
               </div>
               <p className="px-1 text-xs font-medium text-muted sm:px-0">
                 규정 타석 = 소속 팀 경기 수 x 2
+              </p>
+            </div>
+          ) : activeTab === "pitchers" ? (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="inline-flex w-full flex-wrap gap-2 rounded-[24px] bg-soft p-2 sm:w-auto sm:flex-nowrap">
+                {[
+                  { key: "all", label: "전체" },
+                  { key: "qualified_in", label: "규정 IN" },
+                  { key: "qualified_out", label: "규정 OUT" },
+                ].map((option) => {
+                  const isActive = pitcherQualificationFilter === option.key;
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() =>
+                        setPitcherQualificationFilter(
+                          option.key as PitcherQualificationFilter,
+                        )
+                      }
+                      className={
+                        isActive
+                          ? "rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(19,60,115,0.18)]"
+                          : "rounded-full px-4 py-2 text-sm font-medium text-muted transition-colors hover:text-primary"
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="px-1 text-xs font-medium text-muted sm:px-0">
+                규정 이닝 = 소속 팀 경기 수 x 1.2
               </p>
             </div>
           ) : null}
@@ -459,8 +521,8 @@ export function PlayersPageClient({
       ) : (
         <>
           <div className="hidden overflow-x-auto rounded-[28px] border border-line bg-card shadow-[0_16px_40px_rgba(16,35,63,0.08)] md:block">
-            <div className="min-w-[920px]">
-              <div className="grid grid-cols-[140px_100px_90px_90px_90px_70px_70px_60px_60px] bg-soft px-5 py-3 text-xs font-semibold text-muted">
+            <div className="min-w-[1532px]">
+              <div className="grid grid-cols-[180px_repeat(16,72px)] bg-soft px-5 py-3 text-xs font-semibold text-muted">
                 {pitcherColumns.map((column) => (
                   <button
                     key={column.key}
@@ -481,21 +543,33 @@ export function PlayersPageClient({
                 {sortedPitchers.map((player) => (
                   <div
                     key={`${player.team}-${player.player}`}
-                    className="grid grid-cols-[140px_100px_90px_90px_90px_70px_70px_60px_60px] items-center px-5 py-4 text-sm"
+                    className="grid grid-cols-[180px_repeat(16,72px)] items-center px-5 py-4 text-sm"
                   >
-                    <span
-                      className={pitcherValueClass("player", pitcherSort.key)}
-                    >
-                      {player.player}
-                    </span>
-                    <span className={pitcherValueClass("team", pitcherSort.key)}>
-                      {player.team}
+                    <span className={pitcherValueClass("player", pitcherSort.key)}>
+                      <span className="block font-medium text-foreground">
+                        {player.player}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted">
+                        {player.team}
+                      </span>
                     </span>
                     <span className={pitcherValueClass("era", pitcherSort.key)}>
                       {player.era}
                     </span>
-                    <span className={pitcherValueClass("whip", pitcherSort.key)}>
-                      {player.whip}
+                    <span className={pitcherValueClass("team_games", pitcherSort.key)}>
+                      {teamFinishedGameCounts[player.team] ?? 0}
+                    </span>
+                    <span className={pitcherValueClass("games", pitcherSort.key)}>
+                      {player.games}
+                    </span>
+                    <span className={pitcherValueClass("wins", pitcherSort.key)}>
+                      {player.wins}
+                    </span>
+                    <span className={pitcherValueClass("losses", pitcherSort.key)}>
+                      {player.losses}
+                    </span>
+                    <span className={pitcherValueClass("saves", pitcherSort.key)}>
+                      {player.saves}
                     </span>
                     <span className={pitcherValueClass("ip", pitcherSort.key)}>
                       {player.ip}
@@ -503,16 +577,29 @@ export function PlayersPageClient({
                     <span className={pitcherValueClass("so", pitcherSort.key)}>
                       {player.so}
                     </span>
-                    <span className={pitcherValueClass("wins", pitcherSort.key)}>
-                      {player.wins}
+                    <span className={pitcherValueClass("hits_allowed", pitcherSort.key)}>
+                      {player.hitsAllowed}
                     </span>
-                    <span
-                      className={pitcherValueClass("losses", pitcherSort.key)}
-                    >
-                      {player.losses}
+                    <span className={pitcherValueClass("home_runs_allowed", pitcherSort.key)}>
+                      {player.homeRunsAllowed}
                     </span>
-                    <span className={pitcherValueClass("saves", pitcherSort.key)}>
-                      {player.saves}
+                    <span className={pitcherValueClass("runs", pitcherSort.key)}>
+                      {player.runs}
+                    </span>
+                    <span className={pitcherValueClass("earned_runs", pitcherSort.key)}>
+                      {player.earnedRuns}
+                    </span>
+                    <span className={pitcherValueClass("walks", pitcherSort.key)}>
+                      {player.walks}
+                    </span>
+                    <span className={pitcherValueClass("hbp", pitcherSort.key)}>
+                      {player.hbp}
+                    </span>
+                    <span className={pitcherValueClass("win_rate", pitcherSort.key)}>
+                      {player.winRate}
+                    </span>
+                    <span className={pitcherValueClass("whip", pitcherSort.key)}>
+                      {player.whip}
                     </span>
                   </div>
                 ))}
@@ -538,12 +625,25 @@ export function PlayersPageClient({
                   </span>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-3 rounded-3xl bg-soft p-3">
-                  <StatChip label="WHIP" value={player.whip} />
-                  <StatChip label="이닝" value={player.ip} />
-                  <StatChip label="탈삼진" value={String(player.so)} />
+                  <StatChip label="ERA" value={player.era} />
+                  <StatChip
+                    label="팀 경기"
+                    value={String(teamFinishedGameCounts[player.team] ?? 0)}
+                  />
+                  <StatChip label="선수 경기" value={String(player.games)} />
                   <StatChip label="승" value={String(player.wins)} />
                   <StatChip label="패" value={String(player.losses)} />
-                  <StatChip label="세이브" value={String(player.saves)} accent />
+                  <StatChip label="세이브" value={String(player.saves)} />
+                  <StatChip label="이닝" value={player.ip} />
+                  <StatChip label="탈삼진" value={String(player.so)} />
+                  <StatChip label="피안타" value={String(player.hitsAllowed)} />
+                  <StatChip label="피홈런" value={String(player.homeRunsAllowed)} />
+                  <StatChip label="실점" value={String(player.runs)} />
+                  <StatChip label="자책점" value={String(player.earnedRuns)} />
+                  <StatChip label="볼넷" value={String(player.walks)} />
+                  <StatChip label="사구" value={String(player.hbp)} />
+                  <StatChip label="승률" value={player.winRate} />
+                  <StatChip label="WHIP" value={player.whip} accent />
                 </div>
               </article>
             ))}
@@ -623,26 +723,46 @@ function hitterValue(
   }
 }
 
-function pitcherValue(player: PitcherStatsRow, key: PitcherSortKey) {
+function pitcherValue(
+  player: PitcherStatsRow,
+  key: PitcherSortKey,
+  teamFinishedGameCounts: Record<string, number>,
+) {
   switch (key) {
     case "player":
       return player.player;
-    case "team":
-      return player.team;
     case "era":
       return parseFloat(player.era);
-    case "whip":
-      return parseFloat(player.whip);
-    case "ip":
-      return parseFloat(player.ip);
-    case "so":
-      return player.so;
+    case "team_games":
+      return teamFinishedGameCounts[player.team] ?? 0;
+    case "games":
+      return player.games;
     case "wins":
       return player.wins;
     case "losses":
       return player.losses;
     case "saves":
       return player.saves;
+    case "whip":
+      return parseFloat(player.whip);
+    case "ip":
+      return parseFloat(player.ip);
+    case "so":
+      return player.so;
+    case "hits_allowed":
+      return player.hitsAllowed;
+    case "home_runs_allowed":
+      return player.homeRunsAllowed;
+    case "runs":
+      return player.runs;
+    case "earned_runs":
+      return player.earnedRuns;
+    case "walks":
+      return player.walks;
+    case "hbp":
+      return player.hbp;
+    case "win_rate":
+      return parseFloat(player.winRate);
   }
 }
 
@@ -660,6 +780,18 @@ function compareValues(
   const compared = Number(valueA) - Number(valueB);
 
   return direction === "asc" ? compared : compared * -1;
+}
+
+function inningsStringToOuts(value: string) {
+  const [wholePart, partialPart] = value.split(".");
+  const wholeInnings = Number(wholePart || 0);
+  const remainderOuts = Number(partialPart || 0);
+
+  return wholeInnings * 3 + remainderOuts;
+}
+
+function toRequiredPitcherQualificationOuts(teamGames: number) {
+  return teamGames * inningsStringToOuts("1.2");
 }
 
 function sortArrow(direction: SortDirection) {
@@ -682,7 +814,7 @@ function numericHitterColumn(key: HitterSortKey) {
 }
 
 function numericPitcherColumn(key: PitcherSortKey) {
-  return key !== "player" && key !== "team";
+  return key !== "player";
 }
 
 function hitterValueClass(column: HitterSortKey, activeSort: HitterSortKey) {
@@ -712,11 +844,9 @@ function pitcherValueClass(
   }
 
   if (column === "player") {
-    return "font-medium text-foreground";
-  }
-
-  if (column === "team") {
-    return "text-muted";
+    return activeSort === "player"
+      ? "font-semibold text-primary"
+      : "text-left";
   }
 
   return "text-right text-foreground";

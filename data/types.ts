@@ -53,8 +53,16 @@ export type PitcherStatsRow = {
   team: string;
   era: string;
   whip: string;
+  winRate: string;
+  games: number;
   ip: string;
   so: number;
+  hitsAllowed: number;
+  homeRunsAllowed: number;
+  runs: number;
+  earnedRuns: number;
+  walks: number;
+  hbp: number;
   wins: number;
   losses: number;
   saves: number;

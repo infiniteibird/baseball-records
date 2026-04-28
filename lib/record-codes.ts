@@ -20,6 +20,7 @@ type RecordCodeCategory =
   | "caught_stealing"
   | "pickoff"
   | "baserunning_out"
+  | "runner_out"
   | "wild_pitch"
   | "passed_ball"
   | "balk"
@@ -52,6 +53,7 @@ export const recordCodeCategoryLabel: Record<RecordCodeCategory, string> = {
   caught_stealing: "주루",
   pickoff: "주루",
   baserunning_out: "주루",
+  runner_out: "주루",
   wild_pitch: "특수기록",
   passed_ball: "특수기록",
   balk: "특수기록",
@@ -159,20 +161,6 @@ const outCodes = [
   "좌인플",
   "중인플",
   "우인플",
-  "투병",
-  "포병",
-  "1병",
-  "2병",
-  "3병",
-  "유병",
-  "좌병",
-  "중병",
-  "우병",
-  "투직병",
-  "1직병",
-  "2직병",
-  "3직병",
-  "유직병",
   "투희번",
   "포희번",
   "희번",
@@ -197,6 +185,23 @@ const outCodes = [
   "좌삼중살",
   "중삼중살",
   "우삼중살",
+];
+
+const doublePlayCodes = [
+  "투병",
+  "포병",
+  "1병",
+  "2병",
+  "3병",
+  "유병",
+  "좌병",
+  "중병",
+  "우병",
+  "투직병",
+  "1직병",
+  "2직병",
+  "3직병",
+  "유직병",
 ];
 
 const outAliasMap: Record<string, string[]> = {
@@ -353,6 +358,7 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
   ...defineBatch(["투땅", "포땅"], "groundout", {}),
   ...defineBatch(["1땅", "2땅", "3땅", "유땅", "좌땅", "중땅", "우땅"], "groundout", {}),
   createDefinition("병살", "double_play", ["ㅂㅅ", "dp"]),
+  ...defineBatch(doublePlayCodes, "double_play"),
   createDefinition("실책", "error", ["ㅅㅊ", "e"]),
   createDefinition("야수선택", "fielders_choice", ["ㅅㅅㅌ", "fc"]),
   ...defineBatch(
@@ -444,7 +450,7 @@ export const recordCodeDefinitions: RecordCodeDefinition[] = [
   createDefinition("도루자", "caught_stealing", ["ㄷㄹㅈ", "cs"]),
   createDefinition("견제사", "pickoff", ["ㄱㅈㅅ"]),
   createDefinition("주루사", "baserunning_out", ["ㅈㄹㅅ"]),
-  createDefinition("주자아웃", "baserunning_out", ["ㅈㅈㅇ", "ao"]),
+  createDefinition("주자아웃", "runner_out", ["ㅈㅈㅇ", "ao"]),
   ...defineBatch(
     ["타구맞음", "수비방해", "타격방해", "주루방해", "런다운", "포구실책", "송구실책", "승부주자"],
     "other_play",
@@ -492,6 +498,7 @@ const categoryOrder: RecordCodeCategory[] = [
   "caught_stealing",
   "pickoff",
   "baserunning_out",
+  "runner_out",
   "fielders_choice",
   "error",
   "sac_bunt",

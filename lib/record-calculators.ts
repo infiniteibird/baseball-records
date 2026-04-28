@@ -457,6 +457,7 @@ function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
             case "caught_stealing":
             case "pickoff":
             case "baserunning_out":
+            case "runner_out":
               accumulator.outs += 1;
               break;
             case "run_scored":

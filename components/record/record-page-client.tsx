@@ -62,7 +62,7 @@ const recordReferenceSections = [
   {
     title: "주루 관련 기록",
     description: "도루, 견제사, 주루사, 야수선택 등 진루 흐름 기록입니다.",
-    categories: ["steal", "caught_stealing", "pickoff", "baserunning_out", "fielders_choice"],
+    categories: ["steal", "caught_stealing", "pickoff", "baserunning_out", "runner_out", "fielders_choice"],
     accentClass: "border-[#f1e1bf] bg-[#fff9ef]",
   },
   {

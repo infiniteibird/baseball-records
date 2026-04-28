@@ -1056,10 +1056,19 @@ function buildRosterBaseHitters(teams: TeamConfig[]) {
         obp: ".000",
         slg: ".000",
         ops: ".000",
+        games: 0,
+        pa: 0,
+        ab: 0,
         hits: 0,
         hr: 0,
+        doubles: 0,
+        triples: 0,
         rbi: 0,
+        runs: 0,
         steals: 0,
+        bb: 0,
+        hbp: 0,
+        so: 0,
       });
     });
   });

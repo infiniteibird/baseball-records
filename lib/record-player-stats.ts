@@ -5,12 +5,14 @@ import type {
 } from "@/data/types";
 import type { BatterRecordRow, SavedGameRecord } from "@/types/record";
 import { recordCodeMap } from "@/lib/record-codes";
-import { splitPlateAppearances } from "@/lib/record-plate-appearances";
+import { countPlateAppearances, splitPlateAppearances } from "@/lib/record-plate-appearances";
 import { buildPitchingRowsFromAssignments } from "@/lib/pitching-calculator";
 
 type RawHitterAccumulator = {
   name: string;
   teamId: string;
+  games: number;
+  pa: number;
   ab: number;
   runs: number;
   hits: number;
@@ -76,10 +78,19 @@ export function buildRecordedPlayerHittingStats(
         obp,
         slg,
         ops: formatRateString(sumRates(obp, slg)),
+        games: row.games,
+        pa: row.pa,
+        ab: row.ab,
         hits: row.hits,
         hr: row.hr,
+        doubles: row.doubles,
+        triples: row.triples,
         rbi: row.rbi,
+        runs: row.runs,
         steals: row.sb,
+        bb: row.bb,
+        hbp: row.hbp,
+        so: row.so,
       } satisfies StoredHitterStat;
     })
     .sort((playerA, playerB) =>
@@ -166,6 +177,8 @@ function aggregateBattersByTeam(
     const current = hitterMap.get(key) ?? {
       name,
       teamId,
+      games: 0,
+      pa: 0,
       ab: 0,
       runs: 0,
       hits: 0,
@@ -179,8 +192,67 @@ function aggregateBattersByTeam(
       triples: 0,
     };
 
-    for (const cellEntries of row.inningResults) {
-      for (const plateAppearance of splitPlateAppearances(cellEntries)) {
+    const rowTotals = summarizeBatterRowForPlayerStats(row);
+    if (hasRecordedBatterAppearance(row, rowTotals)) {
+      current.games += 1;
+    }
+
+    current.pa += rowTotals.pa;
+    current.ab += rowTotals.ab;
+    current.runs += row.manualRuns ?? rowTotals.runs;
+    current.hits += rowTotals.hits;
+    current.hr += rowTotals.hr;
+    current.rbi += row.manualRbi ?? rowTotals.rbi;
+    current.bb += rowTotals.bb;
+    current.so += rowTotals.so;
+    current.sb += rowTotals.sb;
+    current.hbp += rowTotals.hbp;
+    current.doubles += rowTotals.doubles;
+    current.triples += rowTotals.triples;
+
+    hitterMap.set(key, current);
+  }
+}
+
+function hasRecordedBatterAppearance(
+  row: BatterRecordRow,
+  totals: ReturnType<typeof summarizeBatterRowForPlayerStats>,
+) {
+  return (
+    countPlateAppearances(row.inningResults.flatMap((entries) => entries)) > 0 ||
+    row.manualRuns !== undefined ||
+    row.manualRbi !== undefined ||
+    totals.ab > 0 ||
+    totals.hits > 0 ||
+    totals.bb > 0 ||
+    totals.hbp > 0 ||
+    totals.so > 0 ||
+    totals.sb > 0 ||
+    totals.runs > 0 ||
+    totals.rbi > 0
+  );
+}
+
+function summarizeBatterRowForPlayerStats(row: BatterRecordRow) {
+  return row.inningResults.reduce<{
+    pa: number;
+    ab: number;
+    runs: number;
+    hits: number;
+    hr: number;
+    rbi: number;
+    bb: number;
+    so: number;
+    sb: number;
+    hbp: number;
+    doubles: number;
+    triples: number;
+  }>(
+    (accumulator, cellEntries) => {
+      const appearances = splitPlateAppearances(cellEntries);
+      accumulator.pa += appearances.length;
+
+      for (const plateAppearance of appearances) {
         for (const entry of plateAppearance) {
           const definition = recordCodeMap.get(entry.code);
           if (!definition) {
@@ -189,70 +261,80 @@ function aggregateBattersByTeam(
 
           switch (definition.category) {
             case "single":
-              current.hits += 1;
-              current.ab += 1;
+              accumulator.hits += 1;
+              accumulator.ab += 1;
               break;
             case "double":
-              current.hits += 1;
-              current.doubles += 1;
-              current.ab += 1;
+              accumulator.hits += 1;
+              accumulator.doubles += 1;
+              accumulator.ab += 1;
               break;
             case "triple":
-              current.hits += 1;
-              current.triples += 1;
-              current.ab += 1;
+              accumulator.hits += 1;
+              accumulator.triples += 1;
+              accumulator.ab += 1;
               break;
             case "home_run":
-              current.hits += 1;
-              current.hr += 1;
-              current.rbi += 1;
-              current.runs += 1;
-              current.ab += 1;
+              accumulator.hits += 1;
+              accumulator.hr += 1;
+              accumulator.rbi += 1;
+              accumulator.runs += 1;
+              accumulator.ab += 1;
               break;
             case "walk":
             case "intentional_walk":
-              current.bb += 1;
+              accumulator.bb += 1;
               break;
             case "hit_by_pitch":
-              current.hbp += 1;
+              accumulator.hbp += 1;
               break;
             case "strikeout":
-              current.so += 1;
-              current.ab += 1;
+              accumulator.so += 1;
+              accumulator.ab += 1;
               break;
             case "strikeout_reached":
-              current.so += 1;
-              current.ab += 1;
+              accumulator.so += 1;
+              accumulator.ab += 1;
               break;
             case "groundout":
             case "out":
-              current.ab += 1;
-              break;
             case "double_play":
-              current.ab += 1;
-              break;
             case "error":
             case "fielders_choice":
-              current.ab += 1;
+              accumulator.ab += 1;
               break;
             case "rbi":
-              current.rbi += 1;
+              accumulator.rbi += 1;
               break;
             case "run_scored":
-              current.runs += 1;
+              accumulator.runs += 1;
               break;
             case "steal":
-              current.sb += 1;
+              accumulator.sb += 1;
               break;
             default:
               break;
           }
         }
       }
-    }
 
-    hitterMap.set(key, current);
-  }
+      return accumulator;
+    },
+    {
+      pa: 0,
+      ab: 0,
+      runs: 0,
+      hits: 0,
+      hr: 0,
+      rbi: 0,
+      bb: 0,
+      so: 0,
+      sb: 0,
+      hbp: 0,
+      doubles: 0,
+      triples: 0,
+    },
+  );
 }
 
 function aggregatePitchingRows(

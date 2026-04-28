@@ -33,10 +33,19 @@ export type HitterStatsRow = {
   obp: string;
   slg: string;
   ops: string;
+  games: number;
+  pa: number;
+  ab: number;
   hits: number;
   hr: number;
+  doubles: number;
+  triples: number;
   rbi: number;
+  runs: number;
   steals: number;
+  bb: number;
+  hbp: number;
+  so: number;
 };
 
 export type PitcherStatsRow = {

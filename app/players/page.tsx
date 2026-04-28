@@ -1,12 +1,52 @@
 "use client";
 
+import { useMemo } from "react";
 import { PlayersPageClient } from "@/components/players-page-client";
 import { SectionCard } from "@/components/section-card";
 import { useBaseballData } from "@/store/baseball-context";
 
 export default function PlayersPage() {
-  const { displayHitters, displayPitchers, playerTeams } =
+  const { displayHitters, displayPitchers, playerTeams, state } =
     useBaseballData();
+  const teamFinishedGameCounts = useMemo(() => {
+    const teamNameById = new Map(
+      state.teams.map((team) => [team.id, team.name] as const),
+    );
+    const counts = new Map<string, number>();
+
+    state.games.forEach((game) => {
+      if (
+        game.status !== "종료" ||
+        game.homeScore === null ||
+        game.awayScore === null
+      ) {
+        return;
+      }
+
+      const homeTeam = teamNameById.get(game.homeTeamId);
+      const awayTeam = teamNameById.get(game.awayTeamId);
+
+      if (homeTeam) {
+        counts.set(homeTeam, (counts.get(homeTeam) ?? 0) + 1);
+      }
+
+      if (awayTeam) {
+        counts.set(awayTeam, (counts.get(awayTeam) ?? 0) + 1);
+      }
+    });
+
+    return Object.fromEntries(Array.from(counts.entries()));
+  }, [state.games, state.teams]);
+  const teamPlateAppearanceMinimums = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(teamFinishedGameCounts).map(([team, games]) => [
+          team,
+          games * 2,
+        ]),
+      ),
+    [teamFinishedGameCounts],
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -50,6 +90,8 @@ export default function PlayersPage() {
           hitters={displayHitters}
           pitchers={displayPitchers}
           teams={playerTeams}
+          teamFinishedGameCounts={teamFinishedGameCounts}
+          teamPlateAppearanceMinimums={teamPlateAppearanceMinimums}
         />
       </SectionCard>
     </main>

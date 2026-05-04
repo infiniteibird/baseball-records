@@ -19,6 +19,7 @@ create table if not exists public.games (
   time text not null,
   stadium text not null,
   status text not null check (status in ('예정', '종료', '진행중')),
+  stage text not null default '예선' check (stage in ('예선', '준결승', '결승')),
   away_team_id text not null references public.teams(id) on delete cascade,
   home_team_id text not null references public.teams(id) on delete cascade,
   away_score integer,
@@ -31,6 +32,15 @@ create table if not exists public.games (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.games
+add column if not exists stage text not null default '예선';
+
+alter table public.games
+drop constraint if exists games_stage_check;
+
+alter table public.games
+add constraint games_stage_check check (stage in ('예선', '준결승', '결승'));
 
 create table if not exists public.player_stats (
   id text primary key,

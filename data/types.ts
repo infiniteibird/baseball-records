@@ -1,6 +1,7 @@
 import type { SavedGameRecord } from "@/types/record";
 
 export type GameStatus = "예정" | "종료" | "진행중";
+export type GameStage = "예선" | "준결승" | "결승";
 
 export type TeamConfig = {
   id: string;
@@ -177,6 +178,7 @@ export type StoredGame = {
   time: string;
   stadium: string;
   status: GameStatus;
+  stage: GameStage;
   awayTeamId: string;
   homeTeamId: string;
   awayScore: number | null;

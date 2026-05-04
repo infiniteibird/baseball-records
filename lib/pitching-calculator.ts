@@ -161,7 +161,7 @@ function accumulatePitcherTotalsByEntries(entries: RecordCellEntry[]): RawPitche
           break;
         case "double_play":
           accumulator.atBats += 1;
-          accumulator.outs += 2;
+          accumulator.outs += 1;
           break;
         case "sac_bunt":
         case "sac_fly":

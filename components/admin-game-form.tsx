@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { StoredGame, TeamConfig } from "@/data/types";
+import type { GameStage, StoredGame, TeamConfig } from "@/data/types";
 import { useBaseballData } from "@/store/baseball-context";
+
+const GAME_STAGE_OPTIONS: GameStage[] = ["예선", "준결승", "결승"];
 
 export function AdminGameForm() {
   const {
@@ -618,7 +620,7 @@ export function AdminGameForm() {
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_180px]">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_180px_180px]">
                     <label className="block">
                       <span className="mb-2 block text-xs font-semibold text-muted">
                         원정팀 점수
@@ -694,6 +696,28 @@ export function AdminGameForm() {
                         <option value="진행중">진행중</option>
                       </select>
                     </label>
+
+                    <label className="block">
+                      <span className="mb-2 block text-xs font-semibold text-muted">
+                        경기 단계
+                      </span>
+                      <select
+                        value={selectedGame.stage}
+                        onChange={(event) =>
+                          updateSelectedGame((game) => ({
+                            ...markGameAsEdited(game),
+                            stage: event.target.value as StoredGame["stage"],
+                          }))
+                        }
+                        className="h-12 w-full rounded-2xl border border-line bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                      >
+                        {GAME_STAGE_OPTIONS.map((stage) => (
+                          <option key={stage} value={stage}>
+                            {stage}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
 
                   <div className="rounded-3xl border border-dashed border-line bg-soft p-4">
@@ -701,7 +725,8 @@ export function AdminGameForm() {
                     <p className="mt-2 text-sm leading-6 text-foreground">
                       {displayTeamName(selectedGame.awayTeamId, teamNameMap)} vs{" "}
                       {displayTeamName(selectedGame.homeTeamId, teamNameMap)},{" "}
-                      {selectedGame.date} {selectedGame.time}, {selectedGame.stadium}
+                      {selectedGame.date} {selectedGame.time}, {selectedGame.stadium},{" "}
+                      {selectedGame.stage}
                     </p>
                   </div>
 
@@ -1183,6 +1208,7 @@ function createNewGameDraft(teams: TeamConfig[]): StoredGame {
     time: "18:30",
     stadium: "대운동장 A",
     status: "예정",
+    stage: "예선",
     awayTeamId,
     homeTeamId,
     awayScore: null,

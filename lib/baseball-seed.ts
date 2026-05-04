@@ -25,6 +25,7 @@ export function buildSeedPayload(
     time: game.time,
     stadium: game.stadium,
     status: game.status,
+    stage: "예선",
     awayTeamId: extractTeamIdByName(game.awayTeam),
     homeTeamId: extractTeamIdByName(game.homeTeam),
     awayScore: game.awayScore,

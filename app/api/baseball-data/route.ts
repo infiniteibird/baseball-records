@@ -34,6 +34,7 @@ type DbGameRow = {
   time: string;
   stadium: string;
   status: string;
+  stage?: string | null;
   away_team_id: string;
   home_team_id: string;
   away_score: number | null;
@@ -70,6 +71,7 @@ type UpsertGameRow = {
   time: string;
   stadium: string;
   status: string;
+  stage: "예선" | "준결승" | "결승";
   away_team_id: string;
   home_team_id: string;
   away_score: number | null;
@@ -285,6 +287,7 @@ function summarizeGamesPayload(rows: ReturnType<typeof makeSupabasePayload>["gam
     date: game.date,
     time: game.time,
     status: game.status,
+    stage: game.stage,
     awayTeamId: game.away_team_id,
     homeTeamId: game.home_team_id,
     awayScore: game.away_score,
@@ -435,6 +438,12 @@ function parseGameStatus(status: unknown): "예정" | "종료" | "진행중" {
     : "예정";
 }
 
+function parseGameStage(stage: unknown): "예선" | "준결승" | "결승" {
+  return stage === "예선" || stage === "준결승" || stage === "결승"
+    ? stage
+    : "예선";
+}
+
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -494,6 +503,7 @@ function buildPayloadFromDb(
         time: normalizeText(game.time),
         stadium: normalizeText(game.stadium),
         status: parseGameStatus(game.status),
+        stage: parseGameStage(game.stage),
         awayTeamId: normalizeText(game.away_team_id),
         homeTeamId: normalizeText(game.home_team_id),
         awayScore:
@@ -650,6 +660,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
     time: string;
     stadium: string;
     status: "예정" | "종료" | "진행중";
+    stage: "예선" | "준결승" | "결승";
     away_team_id: string;
     home_team_id: string;
     away_score: number | null;
@@ -704,6 +715,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
         time?: unknown;
         stadium?: unknown;
         status?: unknown;
+        stage?: unknown;
         awayTeamId?: unknown;
         homeTeamId?: unknown;
         awayScore?: unknown;
@@ -723,6 +735,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
       const homeTeamId = normalizeText(candidateGame.homeTeamId);
       const note = normalizeText(candidateGame.note);
       const status = parseGameStatus(candidateGame.status);
+      const stage = parseGameStage(candidateGame.stage);
 
       if (!id || !date || !time || !stadium || !awayTeamId || !homeTeamId) {
         return null;
@@ -735,6 +748,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
         time,
         stadium,
         status,
+        stage,
         away_team_id: awayTeamId,
         home_team_id: homeTeamId,
         away_score:
@@ -768,6 +782,7 @@ function normalizeRequestPayload(payload: unknown): NormalizedPayload | null {
       time: game.time,
       stadium: game.stadium,
       status: game.status,
+      stage: game.stage,
       away_team_id: game.away_team_id,
       home_team_id: game.home_team_id,
       away_score: game.away_score,
@@ -853,7 +868,7 @@ function readFromDatabase() {
       "teams?select=id,name,players,logo_data,updated_at",
     ),
     supabaseFetch<DbGameRow[]>(
-      "games?select=id,date,time,stadium,status,away_team_id,home_team_id,away_score,home_score,source,note,detail_available,record,updated_at",
+      "games?select=id,date,time,stadium,status,stage,away_team_id,home_team_id,away_score,home_score,source,note,detail_available,record,updated_at",
     ),
     supabaseFetch<DbPlayerStatRow[]>(
       "player_stats?select=id,team_id,player_name,school,source,stat_type,raw,updated_at",
@@ -905,6 +920,7 @@ function makeSupabasePayload(normalized: ReturnType<typeof normalizeRequestPaylo
     time: game.time,
     stadium: game.stadium,
     status: game.status,
+    stage: game.stage,
     away_team_id: game.away_team_id,
     home_team_id: game.home_team_id,
     away_score: game.away_score,

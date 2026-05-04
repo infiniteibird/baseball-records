@@ -65,7 +65,7 @@ export default function RankingPage() {
             <div className="rounded-2xl bg-white/12 p-4">
               <p className="text-xs text-white/70">현재 1위 점수</p>
               <strong className="mt-2 block text-2xl">
-                {currentTopScore}
+                {formatRankingScore(currentTopScore)}
               </strong>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function RankingPage() {
                         {player.rank}
                       </span>
                       <strong className="text-2xl font-bold text-accent">
-                        {player.score}
+                        {formatRankingScore(player.score)}
                       </strong>
                     </div>
                     <h3 className="mt-4 text-lg font-semibold text-foreground">
@@ -183,7 +183,7 @@ export default function RankingPage() {
                         </span>
                         <span className="text-muted">{player.team}</span>
                         <span className="text-right font-semibold text-accent">
-                          {player.score}
+                          {formatRankingScore(player.score)}
                         </span>
                         <span className="text-right text-foreground">{player.pa}</span>
                         <span className="text-right text-foreground">{player.singles}</span>
@@ -229,7 +229,7 @@ export default function RankingPage() {
                         {player.rank}
                       </span>
                       <strong className="text-2xl font-bold text-accent">
-                        {player.score}
+                        {formatRankingScore(player.score)}
                       </strong>
                     </div>
                     <h3 className="mt-4 text-lg font-semibold text-foreground">
@@ -298,7 +298,7 @@ export default function RankingPage() {
                         </span>
                         <span className="text-muted">{player.team}</span>
                         <span className="text-right font-semibold text-accent">
-                          {player.score}
+                          {formatRankingScore(player.score)}
                         </span>
                         <span className="text-right text-foreground">{player.ip}</span>
                         <span className="text-right text-foreground">{player.wins}</span>
@@ -367,4 +367,8 @@ function formatPitcherEra(player: {
 
   const innings = player.outs / 3;
   return ((player.earnedRuns * 9) / innings).toFixed(2);
+}
+
+function formatRankingScore(score: number) {
+  return Number.isInteger(score) ? score.toString() : score.toFixed(2);
 }

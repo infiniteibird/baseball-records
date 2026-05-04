@@ -535,6 +535,7 @@ function cloneTeams(teams: TeamConfig[]) {
 function cloneGames(games: StoredGame[]) {
   return games.map((game) => ({
     ...game,
+    stage: game.stage ?? "예선",
   }));
 }
 
@@ -863,13 +864,14 @@ function addTeamDefenseTotals(
 function inningsFromRecordDefinition(category: string) {
   switch (category) {
     case "double_play":
-      return 2;
+      return 1;
     case "out":
     case "groundout":
     case "strikeout":
     case "caught_stealing":
     case "pickoff":
     case "baserunning_out":
+    case "runner_out":
     case "sac_bunt":
     case "sac_fly":
       return 1;

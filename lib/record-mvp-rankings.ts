@@ -1,4 +1,4 @@
-import type { PitchingStatRow, StoredGame } from "@/data/types";
+import type { GameStage, PitchingStatRow, StoredGame } from "@/data/types";
 import type { BatterRecordRow, SavedGameRecord } from "@/types/record";
 import { buildPitchingRowsFromAssignments } from "@/lib/pitching-calculator";
 import { splitPlateAppearances } from "@/lib/record-plate-appearances";
@@ -109,15 +109,16 @@ export function buildBatterMVPRankings(
       return;
     }
 
-    accumulateTeamRows(game.awayTeamId, record.away.batters, playerMap);
-    accumulateTeamRows(game.homeTeamId, record.home.batters, playerMap);
+    const multiplier = getGameStageMultiplier(game.stage);
+    accumulateTeamRows(game.awayTeamId, record.away.batters, playerMap, multiplier);
+    accumulateTeamRows(game.homeTeamId, record.home.batters, playerMap, multiplier);
   });
 
   return Array.from(playerMap.values())
     .map((row) => ({
       ...row,
       team: teamNameMap.get(row.teamId) ?? row.teamId,
-      score: calculateBatterMVPScore(row),
+      score: roundWeightedScore(row.score),
     }))
     .sort((a, b) => {
       if (b.score !== a.score) {
@@ -150,6 +151,7 @@ export function buildPitcherMVPRankings(
       return;
     }
 
+    const multiplier = getGameStageMultiplier(game.stage);
     accumulatePitcherGameRows(
       game.awayTeamId,
       buildPitchingRowsFromAssignments(
@@ -159,6 +161,7 @@ export function buildPitcherMVPRankings(
         record.away.pitcherAssignments,
       ),
       pitcherMap,
+      multiplier,
     );
     accumulatePitcherGameRows(
       game.homeTeamId,
@@ -169,6 +172,7 @@ export function buildPitcherMVPRankings(
         record.home.pitcherAssignments,
       ),
       pitcherMap,
+      multiplier,
     );
   });
 
@@ -180,7 +184,7 @@ export function buildPitcherMVPRankings(
         team: teamNameMap.get(row.teamId) ?? row.teamId,
         ip: formatInningsFromOuts(row.outs),
         nonEarnedRuns,
-        score: calculatePitcherMVPScore(row, nonEarnedRuns),
+        score: roundWeightedScore(row.score),
       };
     })
     .sort((a, b) => {
@@ -204,6 +208,7 @@ function accumulateTeamRows(
   teamId: string,
   rows: BatterRecordRow[],
   playerMap: Map<string, RawBatterMVPTotals>,
+  multiplier: number,
 ) {
   rows.forEach((row) => {
     const playerName = row.playerName.trim();
@@ -231,6 +236,26 @@ function accumulateTeamRows(
     current.doublePlays += totals.doublePlays;
     current.steals += totals.steals;
     current.caughtStealing += totals.caughtStealing;
+    current.score += calculateBatterMVPScore({
+      ...current,
+      score: 0,
+      pa: totals.pa,
+      singles: totals.singles,
+      doubles: totals.doubles,
+      triples: totals.triples,
+      homeRuns: totals.homeRuns,
+      runs: row.manualRuns ?? totals.runs,
+      rbi: row.manualRbi ?? totals.rbi,
+      walks: totals.walks,
+      intentionalWalks: totals.intentionalWalks,
+      sacrificeHits: totals.sacrificeHits,
+      outs: totals.outs,
+      strikeouts: totals.strikeouts,
+      baserunningOuts: totals.baserunningOuts,
+      doublePlays: totals.doublePlays,
+      steals: totals.steals,
+      caughtStealing: totals.caughtStealing,
+    }) * multiplier;
 
     playerMap.set(key, current);
   });
@@ -359,6 +384,7 @@ function accumulatePitcherGameRows(
   teamId: string,
   rows: PitchingStatRow[],
   pitcherMap: Map<string, RawPitcherMVPTotals>,
+  multiplier: number,
 ) {
   const activeRows = rows.filter((row) => inningsStringToOuts(row.ip) > 0);
   const teamOuts = activeRows.reduce(
@@ -402,9 +428,49 @@ function accumulatePitcherGameRows(
     current.shutouts += isShutout ? 1 : 0;
     current.noHitters += isNoHitter ? 1 : 0;
     current.perfectGames += isPerfectGame ? 1 : 0;
+    current.score += calculatePitcherMVPScore(
+      {
+        player: row.name,
+        teamId,
+        score: 0,
+        outs,
+        wins: row.win === "승" ? 1 : 0,
+        losses: row.loss === "패" ? 1 : 0,
+        saves: row.save === "세" ? 1 : 0,
+        strikeouts: row.strikeouts,
+        hitsAllowed: row.hitsAllowed,
+        homeRunsAllowed: row.homeRunsAllowed,
+        walks: row.walks,
+        hbp: row.hitByPitch ?? 0,
+        balks: row.balks ?? 0,
+        runs: row.runs,
+        earnedRuns: row.earnedRuns,
+        completeGames: isCompleteGame ? 1 : 0,
+        shutouts: isShutout ? 1 : 0,
+        noHitters: isNoHitter ? 1 : 0,
+        perfectGames: isPerfectGame ? 1 : 0,
+      },
+      Math.max(0, row.runs - row.earnedRuns),
+    ) * multiplier;
 
     pitcherMap.set(key, current);
   });
+}
+
+function getGameStageMultiplier(stage: GameStage | undefined) {
+  switch (stage) {
+    case "준결승":
+      return 2;
+    case "결승":
+      return 8 / 3;
+    case "예선":
+    default:
+      return 1;
+  }
+}
+
+function roundWeightedScore(score: number) {
+  return Number(score.toFixed(2));
 }
 
 function createEmptyMVPTotals(teamId: string, player: string): RawBatterMVPTotals {

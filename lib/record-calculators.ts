@@ -436,7 +436,7 @@ function summarizeBatterRow(row: BatterRecordRow, inningRuns: number[]) {
               break;
             case "double_play":
               accumulator.ab += 1;
-              accumulator.outs += 2;
+              accumulator.outs += 1;
               accumulator.doublePlays += 1;
               break;
             case "sac_bunt":

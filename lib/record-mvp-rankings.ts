@@ -18,6 +18,7 @@ export type BatterMVPRankingRow = {
   runs: number;
   rbi: number;
   walks: number;
+  hbp: number;
   intentionalWalks: number;
   sacrificeHits: number;
   outs: number;
@@ -66,6 +67,7 @@ const BATTER_MVP_WEIGHTS = {
   run: 5,
   rbi: 10,
   walk: 5,
+  hitByPitch: 5,
   intentionalWalk: 10,
   sacrificeHit: 5,
   out: -5,
@@ -228,6 +230,7 @@ function accumulateTeamRows(
     current.runs += row.manualRuns ?? totals.runs;
     current.rbi += row.manualRbi ?? totals.rbi;
     current.walks += totals.walks;
+    current.hbp += totals.hbp;
     current.intentionalWalks += totals.intentionalWalks;
     current.sacrificeHits += totals.sacrificeHits;
     current.outs += totals.outs;
@@ -247,6 +250,7 @@ function accumulateTeamRows(
       runs: row.manualRuns ?? totals.runs,
       rbi: row.manualRbi ?? totals.rbi,
       walks: totals.walks,
+      hbp: totals.hbp,
       intentionalWalks: totals.intentionalWalks,
       sacrificeHits: totals.sacrificeHits,
       outs: totals.outs,
@@ -271,6 +275,7 @@ function summarizeBatterRowForMVP(row: BatterRecordRow) {
     runs: number;
     rbi: number;
     walks: number;
+    hbp: number;
     intentionalWalks: number;
     sacrificeHits: number;
     outs: number;
@@ -311,6 +316,9 @@ function summarizeBatterRowForMVP(row: BatterRecordRow) {
                 break;
               case "walk":
                 accumulator.walks += 1;
+                break;
+              case "hit_by_pitch":
+                accumulator.hbp += 1;
                 break;
               case "intentional_walk":
                 accumulator.intentionalWalks += 1;
@@ -368,6 +376,7 @@ function summarizeBatterRowForMVP(row: BatterRecordRow) {
       runs: 0,
       rbi: 0,
       walks: 0,
+      hbp: 0,
       intentionalWalks: 0,
       sacrificeHits: 0,
       outs: 0,
@@ -386,6 +395,7 @@ function accumulatePitcherGameRows(
   pitcherMap: Map<string, RawPitcherMVPTotals>,
   multiplier: number,
 ) {
+  const participatingRows = rows.filter((row) => row.name.trim().length > 0);
   const activeRows = rows.filter((row) => inningsStringToOuts(row.ip) > 0);
   const teamOuts = activeRows.reduce(
     (sum, row) => sum + inningsStringToOuts(row.ip),
@@ -399,7 +409,8 @@ function accumulatePitcherGameRows(
     }
 
     const outs = inningsStringToOuts(row.ip);
-    const isCompleteGame = activeRows.length === 1 && outs === teamOuts && outs > 0;
+    const isSinglePitcherGame = participatingRows.length === 1;
+    const isCompleteGame = isSinglePitcherGame && outs === teamOuts && outs > 0;
     const isShutout = isCompleteGame && row.runs === 0;
     const isNoHitter = isCompleteGame && row.hitsAllowed === 0;
     const isPerfectGame =
@@ -408,6 +419,12 @@ function accumulatePitcherGameRows(
       row.walks === 0 &&
       (row.hitByPitch ?? 0) === 0 &&
       row.batters === outs;
+    const achievements = buildPitcherAchievementCounts({
+      isCompleteGame,
+      isShutout,
+      isNoHitter,
+      isPerfectGame,
+    });
 
     const key = `${teamId}::${playerName.toLowerCase()}`;
     const current = pitcherMap.get(key) ?? createEmptyPitcherMVPTotals(teamId, playerName);
@@ -424,10 +441,10 @@ function accumulatePitcherGameRows(
     current.balks += row.balks ?? 0;
     current.runs += row.runs;
     current.earnedRuns += row.earnedRuns;
-    current.completeGames += isCompleteGame ? 1 : 0;
-    current.shutouts += isShutout ? 1 : 0;
-    current.noHitters += isNoHitter ? 1 : 0;
-    current.perfectGames += isPerfectGame ? 1 : 0;
+    current.completeGames += achievements.completeGames;
+    current.shutouts += achievements.shutouts;
+    current.noHitters += achievements.noHitters;
+    current.perfectGames += achievements.perfectGames;
     current.score += calculatePitcherMVPScore(
       {
         player: row.name,
@@ -445,10 +462,10 @@ function accumulatePitcherGameRows(
         balks: row.balks ?? 0,
         runs: row.runs,
         earnedRuns: row.earnedRuns,
-        completeGames: isCompleteGame ? 1 : 0,
-        shutouts: isShutout ? 1 : 0,
-        noHitters: isNoHitter ? 1 : 0,
-        perfectGames: isPerfectGame ? 1 : 0,
+        completeGames: achievements.completeGames,
+        shutouts: achievements.shutouts,
+        noHitters: achievements.noHitters,
+        perfectGames: achievements.perfectGames,
       },
       Math.max(0, row.runs - row.earnedRuns),
     ) * multiplier;
@@ -473,6 +490,61 @@ function roundWeightedScore(score: number) {
   return Number(score.toFixed(2));
 }
 
+function buildPitcherAchievementCounts({
+  isCompleteGame,
+  isShutout,
+  isNoHitter,
+  isPerfectGame,
+}: {
+  isCompleteGame: boolean;
+  isShutout: boolean;
+  isNoHitter: boolean;
+  isPerfectGame: boolean;
+}) {
+  if (isPerfectGame) {
+    return {
+      completeGames: 0,
+      shutouts: 0,
+      noHitters: 0,
+      perfectGames: 1,
+    };
+  }
+
+  if (isNoHitter) {
+    return {
+      completeGames: 0,
+      shutouts: 0,
+      noHitters: 1,
+      perfectGames: 0,
+    };
+  }
+
+  if (isShutout) {
+    return {
+      completeGames: 0,
+      shutouts: 1,
+      noHitters: 0,
+      perfectGames: 0,
+    };
+  }
+
+  if (isCompleteGame) {
+    return {
+      completeGames: 1,
+      shutouts: 0,
+      noHitters: 0,
+      perfectGames: 0,
+    };
+  }
+
+  return {
+    completeGames: 0,
+    shutouts: 0,
+    noHitters: 0,
+    perfectGames: 0,
+  };
+}
+
 function createEmptyMVPTotals(teamId: string, player: string): RawBatterMVPTotals {
   return {
     player,
@@ -486,6 +558,7 @@ function createEmptyMVPTotals(teamId: string, player: string): RawBatterMVPTotal
     runs: 0,
     rbi: 0,
     walks: 0,
+    hbp: 0,
     intentionalWalks: 0,
     sacrificeHits: 0,
     outs: 0,
@@ -534,6 +607,7 @@ function calculateBatterMVPScore(row: RawBatterMVPTotals) {
     row.runs * BATTER_MVP_WEIGHTS.run +
     row.rbi * BATTER_MVP_WEIGHTS.rbi +
     row.walks * BATTER_MVP_WEIGHTS.walk +
+    row.hbp * BATTER_MVP_WEIGHTS.hitByPitch +
     row.intentionalWalks * BATTER_MVP_WEIGHTS.intentionalWalk +
     row.sacrificeHits * BATTER_MVP_WEIGHTS.sacrificeHit +
     row.outs * BATTER_MVP_WEIGHTS.out +
@@ -562,10 +636,24 @@ function calculatePitcherMVPScore(
     row.balks * PITCHER_MVP_WEIGHTS.balk +
     row.earnedRuns * PITCHER_MVP_WEIGHTS.earnedRun +
     nonEarnedRuns * PITCHER_MVP_WEIGHTS.nonEarnedRun +
-    row.shutouts * PITCHER_MVP_WEIGHTS.shutout +
-    row.completeGames * PITCHER_MVP_WEIGHTS.completeGame +
-    row.noHitters * PITCHER_MVP_WEIGHTS.noHitter +
-    row.perfectGames * PITCHER_MVP_WEIGHTS.perfectGame
+    calculatePitcherAchievementScore(row)
+  );
+}
+
+function calculatePitcherAchievementScore(row: Pick<
+  RawPitcherMVPTotals,
+  "completeGames" | "shutouts" | "noHitters" | "perfectGames"
+>) {
+  const perfectGames = row.perfectGames;
+  const noHitters = Math.max(0, row.noHitters - perfectGames);
+  const shutouts = Math.max(0, row.shutouts - row.noHitters);
+  const completeGames = Math.max(0, row.completeGames - row.shutouts);
+
+  return (
+    perfectGames * PITCHER_MVP_WEIGHTS.perfectGame +
+    noHitters * PITCHER_MVP_WEIGHTS.noHitter +
+    shutouts * PITCHER_MVP_WEIGHTS.shutout +
+    completeGames * PITCHER_MVP_WEIGHTS.completeGame
   );
 }
 

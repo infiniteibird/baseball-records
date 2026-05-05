@@ -144,12 +144,12 @@ export default function RankingPage() {
 
           <SectionCard
             title="타자 MVP 랭킹"
-            subtitle="점수 공식: 타석 1, 1루타 10, 2루타 20, 3루타 30, 홈런 50, 득점 5, 타점 10, 볼넷 5, 고의4구 10, 희생타 5, 아웃 -5, 삼진 -10, 주루사 -5, 병살타 -10, 도루 10, 도루자 -5"
+            subtitle="점수 공식: 타석 1, 1루타 10, 2루타 20, 3루타 30, 홈런 50, 득점 5, 타점 10, 볼넷 5, 사구 5, 고의4구 10, 희생타 5, 아웃 -5, 삼진 -10, 주루사 -5, 병살타 -10, 도루 10, 도루자 -5"
           >
             {batterRankings.length > 0 ? (
               <div className="overflow-x-auto rounded-3xl border border-line bg-card">
-                <div className="min-w-[1624px]">
-                  <div className="grid grid-cols-[56px_140px_120px_90px_repeat(16,72px)] bg-soft px-5 py-3 text-xs font-semibold text-muted">
+                <div className="min-w-[1696px]">
+                  <div className="grid grid-cols-[56px_140px_120px_90px_repeat(17,72px)] bg-soft px-5 py-3 text-xs font-semibold text-muted">
                     <span>순위</span>
                     <span>선수명</span>
                     <span>팀명</span>
@@ -162,6 +162,7 @@ export default function RankingPage() {
                     <span className="text-right">득점</span>
                     <span className="text-right">타점</span>
                     <span className="text-right">볼넷</span>
+                    <span className="text-right">사구</span>
                     <span className="text-right">고의4구</span>
                     <span className="text-right">희생타</span>
                     <span className="text-right">아웃</span>
@@ -175,7 +176,7 @@ export default function RankingPage() {
                     {batterRankings.map((player) => (
                       <div
                         key={`${player.team}-${player.player}`}
-                        className="grid grid-cols-[56px_140px_120px_90px_repeat(16,72px)] items-center px-5 py-4 text-sm"
+                        className="grid grid-cols-[56px_140px_120px_90px_repeat(17,72px)] items-center px-5 py-4 text-sm"
                       >
                         <span className="font-bold text-primary">{player.rank}</span>
                         <span className="font-medium text-foreground">
@@ -193,6 +194,7 @@ export default function RankingPage() {
                         <span className="text-right text-foreground">{player.runs}</span>
                         <span className="text-right text-foreground">{player.rbi}</span>
                         <span className="text-right text-foreground">{player.walks}</span>
+                        <span className="text-right text-foreground">{player.hbp}</span>
                         <span className="text-right text-foreground">{player.intentionalWalks}</span>
                         <span className="text-right text-foreground">{player.sacrificeHits}</span>
                         <span className="text-right text-foreground">{player.outs}</span>
